@@ -5,6 +5,12 @@
 - 입력 데이터가 오기 전 웹 앱의 데이터 파이프라인 뼈대를 확정
 - 포맷이 바뀌어도 유지보수 가능한 모듈 구조를 먼저 고정
 - 코드-테스트 동시작성 원칙 적용
+- 환경 이동(로컬 → 컨테이너/운영) 대비 원칙
+  - DB URL, Redis URL, 스토리지 경로, 외부 API 엔드포인트, 배치 batch size, feature flag는 하드코딩 금지
+  - 설정은 `.env`/`pydantic Settings`/런타임 설정으로만 주입
+  - 포트/호스트/타임아웃/로그 레벨도 env로만 제어
+  - 경로는 앱 기준 상대경로+환경변수 조합으로 관리(절대 경로 하드코딩 금지)
+  - 테스트에서도 같은 규칙 적용: fixture는 test env 설정을 사용해 격리
 
 ## 2) 권장 기술 스택 (MVP)
 - Frontend: Next.js + TypeScript + Tailwind + TanStack Query
