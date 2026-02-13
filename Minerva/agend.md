@@ -106,3 +106,6 @@ Minerva는 Affinity Equity Partners(AEP) 포트폴리오 회사들의 B2B Accoun
 - `raw_data_profile.md`(컬럼/타입/예시)
 - `mapping_plan.md`(컬럼 매핑 및 규칙)
 - `scoring_rules.md`(가중치/임계치)
+
+### 실행 상세 설계
+- `agent.md`에서 v1 실행 우선순위, 스키마 초안, 스코어링 공식, 유닛 테스트 정책을 이어서 정리함.
