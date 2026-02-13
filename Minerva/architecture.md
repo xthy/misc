@@ -8,6 +8,7 @@
   - Next.js (또는 Vite + React) 웹 UI
   - 로컬 파일시스템 업로드/Export 저장소
   - Python venv/uv + 단일 프로세스 개발
+  - Docker는 배포/이식 단계에서 선택적 사용
 - 제외 항목(v1)
   - Redis, RQ/Celery, 분산 워커
   - S3/클라우드 오브젝트 스토리지
@@ -38,7 +39,7 @@ flowchart LR
   UP --> RB[Raw Data Ingestion + Parse]
   RB --> RDB[(PostgreSQL)]
 
-  API --> W[Background Task (FastAPI)
+  API --> W[Background Task (FastAPI)]
 
   W --> CLEAN[Cleaning Service]
   W --> SEG[Segmentation Service]
@@ -116,7 +117,7 @@ flowchart LR
   - `(account_status, created_at)`
 
 ## 9. 배포 아키텍처(초기)
-- 추천: Docker Compose(개발/테스트), 이후 `uvicorn + next dev/build` 단일 머신 실행
+- 추천: 로컬 직접 실행 우선, 안정화 후 Docker로 동등 구성 이식
 - 서비스 구성
   - web:3000
   - api:8000

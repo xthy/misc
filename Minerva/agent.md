@@ -16,9 +16,10 @@
 - Frontend: Next.js + TypeScript + Tailwind + TanStack Query
 - Backend: FastAPI (Python)
 - DB: PostgreSQL 15+
-- Background Job: Redis Queue (RQ) 또는 Celery (초기엔 RQ)
-- Object Store: S3호환(minio/s3)
+- Background Job: FastAPI BackgroundTasks + DB 기반 간이 큐
+- Object Store: 로컬 파일시스템(필요 시 Docker에서 바인드 볼륨)
 - Auth: 회사/포트폴리오 권한 기준 JWT 기반
+- 확장(후속): Redis/Celery, S3호환 스토리지(선택)
 
 ## 3) PostgreSQL 추천 결론
 - 이유
