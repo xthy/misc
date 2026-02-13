@@ -132,3 +132,6 @@
 - 브랜치: `develop` 단일 feature 흐름
 - 작업 단위 커밋: 문서/스키마/API/프론트 각 1개씩 분리
 - 완료 후 `develop` → `main` 병합
+
+### Architecture 상세 연동
+- 실행 상세와 분리한 전체 시스템 아키텍처는 `Minerva/architecture.md`를 참조한다.

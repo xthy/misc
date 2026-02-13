@@ -109,3 +109,6 @@ Minerva는 Affinity Equity Partners(AEP) 포트폴리오 회사들의 B2B Accoun
 
 ### 실행 상세 설계
 - `agent.md`에서 v1 실행 우선순위, 스키마 초안, 스코어링 공식, 유닛 테스트 정책을 이어서 정리함.
+
+### Architecture 상세
+- 시스템 아키텍처(컴포넌트/파이프라인/보안/배포)는 `Minerva/architecture.md`로 상세 정리됨.
