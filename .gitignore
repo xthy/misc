@@ -1,0 +1,10 @@
+# OS
+.DS_Store
+
+# Secrets
+.env
+*.env.local
+
+# Database files
+*.db
+*.db-journal
