@@ -433,7 +433,7 @@
 | 상황 | Action | 담당 |
 |------|--------|------|
 | Deal stuck >30 days | Alert to Sales Manager | Agent → Manager |
-| Discount >20% requested | Manager approval required | AE → Manager |
+| Discount >20% requested | VP Sales approval required (할인 매트릭스 참조) | AE → VP Sales |
 | Health Score → Red | Immediate CS + Manager review | Agent → CS Manager |
 | Champion leaves company | Re-qualify opportunity | Agent alert → AE |
 | Forecast miss >20% | Executive review | Ops → VP Sales |

@@ -1,0 +1,61 @@
+{
+  "company_name": "CloudMetrics Inc.",
+  "domain": "cloudmetrics.io",
+  "industry": "SaaS",
+  "sub_industry": "Observability & Monitoring",
+  "employee_count": 350,
+  "annual_revenue": null,
+  "hq_location": "Seoul, South Korea",
+  "founded_year": 2019,
+  "growth_rate": null,
+  "funding_stage": "Series B",
+  "funding_amount": "$28M",
+  "funding_date": "2025-11-15",
+  "crm_system": null,
+  "tech_maturity": null,
+  "current_solution": "자체 개발 스프레드시트 기반 관리",
+  "integration_need": null,
+  "security_requirement": null,
+  "tech_stack": null,
+  "core_pain": "영업팀 급성장(15명→40명) 중 프로세스 표준화 부재로 파이프라인 관리 비효율",
+  "budget_status": null,
+  "timeline": "6개월 내 도입 검토 중",
+  "decision_complexity": null,
+  "champion_presence": "VP of Sales 박정수님이 솔루션 탐색 중",
+  "estimated_acv": null,
+  "notes": "최근 Series B 완료 후 GTM 조직 대폭 확대 중. VP of Sales가 전직장에서 Salesforce 사용 경험 있음. DevOps/클라우드 인프라 모니터링 SaaS를 B2B로 판매하는 회사. 일본 시장 진출도 준비 중이라 프로세스 표준화가 시급하다고 언급.",
+  "intent_signals": [
+    {
+      "type": "funding",
+      "description": "Series B $28M 완료 (2025-11)",
+      "detected_at": "2025-11-15",
+      "source": "Crunchbase"
+    },
+    {
+      "type": "job_posting",
+      "description": "SDR 5명, AE 3명, Sales Ops 1명 채용공고 게시",
+      "detected_at": "2026-02-01",
+      "source": "LinkedIn"
+    },
+    {
+      "type": "exec_change",
+      "description": "VP of Sales 박정수 신규 영입 (2025-12)",
+      "detected_at": "2025-12-01",
+      "source": "LinkedIn"
+    }
+  ],
+  "engagement_activities": [
+    {
+      "type": "website_visit",
+      "description": "제품 페이지 및 가격 페이지 5회 방문",
+      "date": "2026-02-10",
+      "source": "Web Analytics"
+    },
+    {
+      "type": "content_download",
+      "description": "B2B SaaS 영업 프로세스 가이드 다운로드",
+      "date": "2026-02-12",
+      "source": "Marketing Automation"
+    }
+  ]
+}

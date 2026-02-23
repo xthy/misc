@@ -1,0 +1,68 @@
+version: "3.8"
+
+# B2B Sales Agent PoC — Docker Compose
+# n8n (workflow) + PostgreSQL/pgvector (RAG store)
+#
+# Usage:
+#   cp .env.example .env  # API 키 설정
+#   docker compose up -d
+#   open http://localhost:5678
+
+services:
+  # ─────────────────────────────────────────────
+  # n8n — Workflow Automation (Agent Runtime)
+  # ─────────────────────────────────────────────
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: sales-agent-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # Core
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      # Auth
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-salesagent}
+      # Execution
+      - EXECUTIONS_MODE=regular
+      - EXECUTIONS_TIMEOUT=300
+      - EXECUTIONS_TIMEOUT_MAX=600
+      # AI features
+      - N8N_AI_ENABLED=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/home/node/workflows:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL + pgvector — RAG Store & Metadata
+  # ─────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: sales-agent-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=salesagent
+      - POSTGRES_USER=${PG_USER:-salesagent}
+      - POSTGRES_PASSWORD=${PG_PASSWORD:-salesagent_dev}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-salesagent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  n8n_data:
+  pg_data:

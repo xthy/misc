@@ -1,0 +1,171 @@
+{
+  "name": "Weekly Ops Report (PoC v2)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule: Monday 8AM KST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "notes": "Every Monday 08:00 KST (UTC+9 = Sunday 23:00 UTC). n8n 서버 timezone을 Asia/Seoul로 설정하거나 cron을 UTC 기준 '0 23 * * 0'으로 변경."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Weekly Ops Report: Pipeline Metrics\n-- 실행 시점 기준 월요일 → 지난 주 (월~일) 데이터 집계\n\nWITH report_period AS (\n  SELECT\n    (CURRENT_DATE - INTERVAL '7 days')::date AS week_start,\n    (CURRENT_DATE - INTERVAL '1 day')::date   AS week_end,\n    date_trunc('quarter', CURRENT_DATE)::date  AS quarter_start,\n    CURRENT_DATE                                AS today\n),\n\n-- 1. Pipeline by Stage (count + $ value)\npipeline_by_stage AS (\n  SELECT\n    o.\"StageName\"          AS stage,\n    COUNT(*)               AS deal_count,\n    COALESCE(SUM(o.\"ACV__c\"), 0) AS total_acv,\n    COALESCE(AVG(o.\"ACV__c\"), 0) AS avg_acv\n  FROM opportunities o\n  WHERE o.\"StageName\" NOT IN ('Closed_Won', 'Closed_Lost')\n  GROUP BY o.\"StageName\"\n  ORDER BY CASE o.\"StageName\"\n    WHEN 'S1_Discovery'     THEN 1\n    WHEN 'S2_Qualification' THEN 2\n    WHEN 'S3_Proof'         THEN 3\n    WHEN 'S4_Proposal'      THEN 4\n    WHEN 'S5_Negotiation'   THEN 5\n    WHEN 'S6_Verbal_Commit' THEN 6\n  END\n),\n\n-- 2. New opportunities this week\nnew_opps AS (\n  SELECT\n    o.\"Name\"            AS opportunity_name,\n    a.\"Name\"            AS account_name,\n    a.\"Tier__c\"         AS account_tier,\n    o.\"StageName\"       AS stage,\n    o.\"ACV__c\"          AS acv,\n    o.\"OwnerId\"         AS owner,\n    o.\"CreatedDate\"     AS created_date\n  FROM opportunities o\n  JOIN accounts a ON o.\"AccountId\" = a.id\n  CROSS JOIN report_period rp\n  WHERE o.\"CreatedDate\" >= rp.week_start\n    AND o.\"CreatedDate\" <= rp.week_end\n),\n\n-- 3. Stage movements this week\nstage_movements AS (\n  SELECT\n    o.\"Name\"                AS opportunity_name,\n    sm.previous_stage,\n    sm.new_stage,\n    a.\"Tier__c\"             AS account_tier,\n    o.\"ACV__c\"              AS acv,\n    sm.moved_at\n  FROM stage_movement_log sm\n  JOIN opportunities o ON sm.opportunity_id = o.id\n  JOIN accounts a ON o.\"AccountId\" = a.id\n  CROSS JOIN report_period rp\n  WHERE sm.moved_at >= rp.week_start\n    AND sm.moved_at <= rp.week_end\n),\n\n-- 4. Stalled deals (>30 days in stage)\nstalled_deals AS (\n  SELECT\n    o.\"Name\"            AS opportunity_name,\n    a.\"Name\"            AS account_name,\n    a.\"Tier__c\"         AS account_tier,\n    o.\"StageName\"       AS stage,\n    o.\"ACV__c\"          AS acv,\n    o.\"Days_in_Stage__c\" AS days_in_stage,\n    o.\"OwnerId\"         AS owner,\n    o.\"MEDDICC_Total__c\" AS meddicc_total\n  FROM opportunities o\n  JOIN accounts a ON o.\"AccountId\" = a.id\n  WHERE o.\"Stalled__c\" = true\n    AND o.\"StageName\" NOT IN ('Closed_Won', 'Closed_Lost')\n  ORDER BY o.\"ACV__c\" DESC\n),\n\n-- 5. Win/Loss this week\nwin_loss AS (\n  SELECT\n    o.\"Name\"                   AS opportunity_name,\n    a.\"Name\"                   AS account_name,\n    a.\"Tier__c\"                AS account_tier,\n    o.\"StageName\"              AS outcome,\n    o.\"ACV__c\"                 AS acv,\n    o.\"Win_Loss_Reason_1__c\"   AS primary_reason,\n    o.\"Win_Loss_Reason_2__c\"   AS secondary_reason,\n    o.\"Loss_Detail__c\"         AS loss_detail,\n    o.\"MEDDICC_Total__c\"       AS meddicc_total,\n    o.\"CloseDate\"              AS close_date\n  FROM opportunities o\n  JOIN accounts a ON o.\"AccountId\" = a.id\n  CROSS JOIN report_period rp\n  WHERE o.\"StageName\" IN ('Closed_Won', 'Closed_Lost')\n    AND o.\"CloseDate\" >= rp.week_start\n    AND o.\"CloseDate\" <= rp.week_end\n),\n\n-- 6. Forecast accuracy (commit vs actual, current quarter)\nforecast_data AS (\n  SELECT\n    o.\"Forecast_Category__c\"   AS category,\n    COUNT(*)                   AS deal_count,\n    COALESCE(SUM(o.\"ACV__c\"), 0) AS total_acv,\n    COALESCE(SUM(CASE WHEN o.\"StageName\" = 'Closed_Won' THEN o.\"ACV__c\" ELSE 0 END), 0) AS closed_won_acv\n  FROM opportunities o\n  CROSS JOIN report_period rp\n  WHERE o.\"CloseDate\" >= rp.quarter_start\n    AND o.\"CloseDate\" < rp.quarter_start + INTERVAL '3 months'\n  GROUP BY o.\"Forecast_Category__c\"\n),\n\n-- 7. Top 10 deals by ACV (open pipeline)\ntop_deals AS (\n  SELECT\n    o.\"Name\"                AS opportunity_name,\n    a.\"Name\"                AS account_name,\n    a.\"Tier__c\"             AS account_tier,\n    o.\"StageName\"           AS stage,\n    o.\"ACV__c\"              AS acv,\n    o.\"CloseDate\"           AS expected_close,\n    o.\"MEDDICC_Total__c\"    AS meddicc_total,\n    o.\"Forecast_Category__c\" AS forecast_category,\n    o.\"Days_in_Stage__c\"    AS days_in_stage,\n    o.\"OwnerId\"             AS owner\n  FROM opportunities o\n  JOIN accounts a ON o.\"AccountId\" = a.id\n  WHERE o.\"StageName\" NOT IN ('Closed_Won', 'Closed_Lost')\n  ORDER BY o.\"ACV__c\" DESC\n  LIMIT 10\n)\n\n-- Assemble all sections into a single JSON result\nSELECT json_build_object(\n  'report_period', (SELECT json_build_object('week_start', week_start, 'week_end', week_end, 'quarter_start', quarter_start, 'generated_at', NOW()) FROM report_period),\n  'pipeline_by_stage', (SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM pipeline_by_stage p),\n  'new_opportunities', (SELECT COALESCE(json_agg(row_to_json(n)), '[]'::json) FROM new_opps n),\n  'stage_movements', (SELECT COALESCE(json_agg(row_to_json(s)), '[]'::json) FROM stage_movements s),\n  'stalled_deals', (SELECT COALESCE(json_agg(row_to_json(sd)), '[]'::json) FROM stalled_deals sd),\n  'win_loss', (SELECT COALESCE(json_agg(row_to_json(wl)), '[]'::json) FROM win_loss wl),\n  'forecast', (SELECT COALESCE(json_agg(row_to_json(f)), '[]'::json) FROM forecast_data f),\n  'top_deals', (SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM top_deals t)\n) AS pipeline_data;",
+        "options": {}
+      },
+      "id": "fetch-pipeline-data",
+      "name": "PostgreSQL: Fetch Pipeline Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [440, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CONFIGURE_ME",
+          "name": "Sales Agent DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and restructure pipeline data for LLM\nconst input = $input.first().json;\n\nlet pipelineData;\nif (input.pipeline_data) {\n  pipelineData = typeof input.pipeline_data === 'string'\n    ? JSON.parse(input.pipeline_data)\n    : input.pipeline_data;\n} else {\n  throw new Error('No pipeline_data returned from PostgreSQL query');\n}\n\n// Calculate summary metrics\nconst pipeline = pipelineData.pipeline_by_stage || [];\nconst totalPipelineACV = pipeline.reduce((sum, s) => sum + Number(s.total_acv || 0), 0);\nconst totalDealCount = pipeline.reduce((sum, s) => sum + Number(s.deal_count || 0), 0);\n\nconst wins = (pipelineData.win_loss || []).filter(d => d.outcome === 'Closed_Won');\nconst losses = (pipelineData.win_loss || []).filter(d => d.outcome === 'Closed_Lost');\nconst wonACV = wins.reduce((sum, d) => sum + Number(d.acv || 0), 0);\nconst lostACV = losses.reduce((sum, d) => sum + Number(d.acv || 0), 0);\n\nconst forecast = pipelineData.forecast || [];\nconst commitForecast = forecast.find(f => f.category === 'Commit');\nconst bestCaseForecast = forecast.find(f => f.category === 'Best Case');\nconst closedWonQTD = forecast.reduce((sum, f) => sum + Number(f.closed_won_acv || 0), 0);\nconst commitTotal = commitForecast ? Number(commitForecast.total_acv || 0) : 0;\n\nconst enriched = {\n  ...pipelineData,\n  summary: {\n    total_pipeline_acv: totalPipelineACV,\n    total_open_deals: totalDealCount,\n    new_opps_count: (pipelineData.new_opportunities || []).length,\n    new_opps_acv: (pipelineData.new_opportunities || []).reduce((sum, o) => sum + Number(o.acv || 0), 0),\n    stage_movements_count: (pipelineData.stage_movements || []).length,\n    stalled_deals_count: (pipelineData.stalled_deals || []).length,\n    stalled_deals_acv: (pipelineData.stalled_deals || []).reduce((sum, d) => sum + Number(d.acv || 0), 0),\n    wins_count: wins.length,\n    wins_acv: wonACV,\n    losses_count: losses.length,\n    losses_acv: lostACV,\n    win_rate_count: (wins.length + losses.length) > 0\n      ? Math.round(wins.length / (wins.length + losses.length) * 100)\n      : null,\n    win_rate_acv: (wonACV + lostACV) > 0\n      ? Math.round(wonACV / (wonACV + lostACV) * 100)\n      : null,\n    forecast_commit_acv: commitTotal,\n    forecast_best_case_acv: bestCaseForecast ? Number(bestCaseForecast.total_acv || 0) : 0,\n    forecast_closed_won_qtd: closedWonQTD,\n    forecast_accuracy_pct: commitTotal > 0\n      ? Math.round(closedWonQTD / commitTotal * 100)\n      : null\n  },\n  generated_at: new Date().toISOString()\n};\n\nreturn [{ json: enriched }];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare & Enrich Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "=다음 파이프라인 데이터를 분석하여 주간 Ops 리포트를 생성하세요.\n\nREPORT PERIOD:\n- Week: {{ $json.report_period.week_start }} ~ {{ $json.report_period.week_end }}\n- Quarter Start: {{ $json.report_period.quarter_start }}\n- Generated At: {{ $json.generated_at }}\n\nSUMMARY METRICS:\n{{ JSON.stringify($json.summary, null, 2) }}\n\nPIPELINE BY STAGE:\n{{ JSON.stringify($json.pipeline_by_stage, null, 2) }}\n\nNEW OPPORTUNITIES THIS WEEK:\n{{ JSON.stringify($json.new_opportunities, null, 2) }}\n\nSTAGE MOVEMENTS THIS WEEK:\n{{ JSON.stringify($json.stage_movements, null, 2) }}\n\nSTALLED DEALS (>30 DAYS IN STAGE):\n{{ JSON.stringify($json.stalled_deals, null, 2) }}\n\nWIN/LOSS THIS WEEK:\n{{ JSON.stringify($json.win_loss, null, 2) }}\n\nFORECAST (CURRENT QUARTER):\n{{ JSON.stringify($json.forecast, null, 2) }}\n\nTOP 10 DEALS BY ACV:\n{{ JSON.stringify($json.top_deals, null, 2) }}\n\n위 데이터를 기반으로 주간 리포트를 JSON 형식으로 반환하세요."
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "You are the Ops Analyst Agent for a B2B Sales AI system.\n\nTASK: Analyze pipeline data and generate a weekly ops report in Korean.\n\n═══════════════════════════════════════\nOUTPUT FORMAT (STRICT JSON)\n═══════════════════════════════════════\n\nReturn ONLY valid JSON with this structure:\n{\n  \"executive_summary\": [\n    \"bullet 1 (가장 중요한 변화)\",\n    \"bullet 2\",\n    \"bullet 3 (최대 5개)\"\n  ],\n  \"pipeline_health\": {\n    \"status\": \"GREEN|YELLOW|RED\",\n    \"total_pipeline_acv\": number,\n    \"total_open_deals\": number,\n    \"coverage_ratio\": number or null,\n    \"assessment\": \"한국어 2-3문장 평가\",\n    \"stage_distribution\": [\n      { \"stage\": \"S1_Discovery\", \"count\": N, \"acv\": N, \"comment\": \"한줄 코멘트\" }\n    ]\n  },\n  \"risk_highlights\": [\n    {\n      \"risk_type\": \"stalled_deal|forecast_gap|stage_bottleneck|coverage_low\",\n      \"severity\": \"HIGH|MEDIUM|LOW\",\n      \"description\": \"한국어 설명\",\n      \"affected_deals\": [\"deal names\"],\n      \"recommended_action\": \"한국어 권장 조치\"\n    }\n  ],\n  \"win_loss_analysis\": {\n    \"wins\": { \"count\": N, \"acv\": N, \"patterns\": \"한국어 패턴 분석\" },\n    \"losses\": { \"count\": N, \"acv\": N, \"patterns\": \"한국어 패턴 분석\" },\n    \"win_rate_trend\": \"한국어 추세 코멘트\"\n  },\n  \"weekly_actions\": [\n    {\n      \"priority\": 1,\n      \"action\": \"한국어 액션 항목\",\n      \"owner_hint\": \"AE/Manager/Ops\",\n      \"target_deals\": [\"deal names\"],\n      \"deadline_hint\": \"이번 주 내 / 다음 리뷰 전\"\n    }\n  ],\n  \"forecast_update\": {\n    \"commit_acv\": number,\n    \"best_case_acv\": number,\n    \"closed_won_qtd\": number,\n    \"accuracy_pct\": number or null,\n    \"commentary\": \"한국어 예측 코멘트\"\n  }\n}\n\n═══════════════════════════════════════\nPIPELINE HEALTH SCORING CRITERIA\n═══════════════════════════════════════\n\nGREEN (건강):\n- Pipeline coverage >= 3x quota\n- Stalled deals <= 10% of open pipeline\n- Win rate (count) >= 30%\n- Stage distribution balanced (no single stage > 40%)\n\nYELLOW (주의):\n- Pipeline coverage 2-3x quota\n- Stalled deals 10-20% of open pipeline\n- Win rate 20-30%\n- Slight imbalance in stage distribution\n\nRED (위험):\n- Pipeline coverage < 2x quota\n- Stalled deals > 20% of open pipeline\n- Win rate < 20%\n- Severe stage imbalance or empty early stages\n\n═══════════════════════════════════════\n7-STAGE CANON (pipeline stages)\n═══════════════════════════════════════\n\nS1_Discovery → S2_Qualification → S3_Proof → S4_Proposal → S5_Negotiation → S6_Verbal_Commit → Closed_Won / Closed_Lost\n\n═══════════════════════════════════════\nRULES\n═══════════════════════════════════════\n\n1. DATA-DRIVEN: 모든 판단은 제공된 데이터에 근거. 데이터 없으면 'N/A'.\n2. KOREAN OUTPUT: 리포트 본문은 한국어, 필드명/Stage명은 영어 유지.\n3. ACTIONABLE: 모든 risk와 action은 구체적 딜/담당자를 지목.\n4. CONSERVATIVE: 불확실한 예측은 보수적으로. 낙관 편향 금지.\n5. PRIORITIZED: weekly_actions는 비즈니스 임팩트 순 정렬.\n6. NO HALLUCINATION: 제공되지 않은 데이터를 만들어내지 마세요.\n7. Return ONLY valid JSON. No markdown, no explanation outside the JSON.",
+          "maxTokens": 4096,
+          "temperature": 0.2
+        }
+      },
+      "id": "openai-ops-report",
+      "name": "OpenAI: Generate Report",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [920, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "CONFIGURE_ME",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse LLM response and format as Slack-compatible markdown\nconst pipelineData = $('Prepare & Enrich Data').first().json;\nconst llmResponse = $input.first().json;\n\n// Parse the JSON from LLM response\nlet report;\ntry {\n  if (typeof llmResponse.message === 'string') {\n    let cleaned = llmResponse.message.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    report = JSON.parse(cleaned);\n  } else if (llmResponse.message?.content) {\n    let cleaned = llmResponse.message.content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    report = JSON.parse(cleaned);\n  } else {\n    report = llmResponse;\n  }\n} catch (e) {\n  throw new Error(`Failed to parse LLM response: ${e.message}`);\n}\n\n// Pipeline Health emoji\nconst healthEmoji = {\n  GREEN: ':large_green_circle:',\n  YELLOW: ':large_yellow_circle:',\n  RED: ':red_circle:'\n};\nconst healthStatus = report.pipeline_health?.status || 'YELLOW';\n\n// Severity emoji\nconst severityEmoji = { HIGH: ':rotating_light:', MEDIUM: ':warning:', LOW: ':information_source:' };\n\n// Format currency\nconst fmtKRW = (v) => {\n  if (v == null) return 'N/A';\n  if (v >= 100000000) return `${(v / 100000000).toFixed(1)}억원`;\n  if (v >= 10000) return `${(v / 10000).toFixed(0)}만원`;\n  return `${v.toLocaleString()}원`;\n};\nconst fmtUSD = (v) => {\n  if (v == null) return 'N/A';\n  if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;\n  if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;\n  return `$${v.toLocaleString()}`;\n};\n\n// Build Slack blocks\nconst period = pipelineData.report_period;\nconst blocks = [\n  {\n    type: 'header',\n    text: { type: 'plain_text', text: `Weekly Ops Report | ${period.week_start} ~ ${period.week_end}` }\n  },\n  { type: 'divider' },\n\n  // Executive Summary\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `${healthEmoji[healthStatus]} *Executive Summary*\\n` +\n        (report.executive_summary || []).map(b => `  • ${b}`).join('\\n')\n    }\n  },\n  { type: 'divider' },\n\n  // Pipeline Health\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `*Pipeline Health: ${healthStatus}*\\n` +\n        `Total Pipeline: ${fmtUSD(report.pipeline_health?.total_pipeline_acv)} | ` +\n        `Open Deals: ${report.pipeline_health?.total_open_deals || 0}\\n` +\n        (report.pipeline_health?.assessment || '')\n    }\n  },\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: '*Stage Distribution:*\\n' +\n        (report.pipeline_health?.stage_distribution || []).map(s =>\n          `  ${s.stage}: ${s.count}건 / ${fmtUSD(s.acv)} — ${s.comment}`\n        ).join('\\n')\n    }\n  },\n  { type: 'divider' },\n\n  // Risk Highlights\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: '*Risk Highlights*\\n' +\n        (report.risk_highlights || []).map(r =>\n          `${severityEmoji[r.severity] || ''} *[${r.severity}]* ${r.description}\\n` +\n          `  → ${r.recommended_action}` +\n          (r.affected_deals?.length ? `\\n  대상: ${r.affected_deals.join(', ')}` : '')\n        ).join('\\n\\n')\n    }\n  },\n  { type: 'divider' },\n\n  // Win/Loss\n  {\n    type: 'section',\n    fields: [\n      {\n        type: 'mrkdwn',\n        text: `:trophy: *Wins*\\n${report.win_loss_analysis?.wins?.count || 0}건 / ${fmtUSD(report.win_loss_analysis?.wins?.acv)}\\n${report.win_loss_analysis?.wins?.patterns || 'N/A'}`\n      },\n      {\n        type: 'mrkdwn',\n        text: `:x: *Losses*\\n${report.win_loss_analysis?.losses?.count || 0}건 / ${fmtUSD(report.win_loss_analysis?.losses?.acv)}\\n${report.win_loss_analysis?.losses?.patterns || 'N/A'}`\n      }\n    ]\n  },\n  { type: 'divider' },\n\n  // Forecast\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `*Forecast Update (Current Quarter)*\\n` +\n        `Commit: ${fmtUSD(report.forecast_update?.commit_acv)} | ` +\n        `Best Case: ${fmtUSD(report.forecast_update?.best_case_acv)} | ` +\n        `Closed Won QTD: ${fmtUSD(report.forecast_update?.closed_won_qtd)}\\n` +\n        `Accuracy: ${report.forecast_update?.accuracy_pct != null ? report.forecast_update.accuracy_pct + '%' : 'N/A'}\\n` +\n        (report.forecast_update?.commentary || '')\n    }\n  },\n  { type: 'divider' },\n\n  // Weekly Actions\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: '*Weekly Actions*\\n' +\n        (report.weekly_actions || []).map((a, i) =>\n          `*${i + 1}.* ${a.action}` +\n          (a.owner_hint ? ` _(${a.owner_hint})_` : '') +\n          (a.deadline_hint ? ` — ${a.deadline_hint}` : '') +\n          (a.target_deals?.length ? `\\n    대상: ${a.target_deals.join(', ')}` : '')\n        ).join('\\n')\n    }\n  },\n\n  // Footer\n  { type: 'divider' },\n  {\n    type: 'context',\n    elements: [\n      {\n        type: 'mrkdwn',\n        text: `Generated by Ops Analyst Agent | ${new Date().toISOString()} | gpt-4o`\n      }\n    ]\n  }\n];\n\nconst slackMessage = { blocks };\n\nreturn [{\n  json: {\n    report,\n    slack_message: slackMessage,\n    db_record: {\n      agent_name: 'ops_analyst',\n      trigger_type: 'schedule',\n      input_summary: `Weekly report ${period.week_start} ~ ${period.week_end}. Pipeline: ${fmtUSD(pipelineData.summary.total_pipeline_acv)}, Open deals: ${pipelineData.summary.total_open_deals}`,\n      output_summary: `Health: ${healthStatus}, Risks: ${(report.risk_highlights || []).length}, Actions: ${(report.weekly_actions || []).length}`,\n      report_json: report\n    }\n  }\n}];"
+      },
+      "id": "format-report",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: '#sales-ops', ...($json.slack_message) }) }}",
+        "options": {}
+      },
+      "id": "slack-send",
+      "name": "Slack: Send Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO agent_executions (agent_name, workflow_id, trigger_type, input_summary, output_summary, status, completed_at, duration_ms, metadata) VALUES ('{{ $json.db_record.agent_name }}', 'weekly_ops_report_v1', '{{ $json.db_record.trigger_type }}', '{{ $json.db_record.input_summary }}', '{{ $json.db_record.output_summary }}', 'success', NOW(), EXTRACT(EPOCH FROM (NOW() - '{{ $('Schedule: Monday 8AM KST').first().json.timestamp || new Date().toISOString() }}'::timestamptz)) * 1000, '{{ JSON.stringify($json.db_record.report_json) }}'::jsonb) RETURNING id;",
+        "options": {}
+      },
+      "id": "log-execution",
+      "name": "PostgreSQL: Log Execution",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1400, 400],
+      "credentials": {
+        "postgres": {
+          "id": "CONFIGURE_ME",
+          "name": "Sales Agent DB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule: Monday 8AM KST": {
+      "main": [
+        [{ "node": "PostgreSQL: Fetch Pipeline Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "PostgreSQL: Fetch Pipeline Data": {
+      "main": [
+        [{ "node": "Prepare & Enrich Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Prepare & Enrich Data": {
+      "main": [
+        [{ "node": "OpenAI: Generate Report", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI: Generate Report": {
+      "main": [
+        [{ "node": "Format Report", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          { "node": "Slack: Send Report", "type": "main", "index": 0 },
+          { "node": "PostgreSQL: Log Execution", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "Asia/Seoul"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "sales-agent-poc-v2"
+  },
+  "tags": [
+    { "name": "poc-v2" },
+    { "name": "ops-analyst" },
+    { "name": "weekly-report" }
+  ]
+}

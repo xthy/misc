@@ -1,0 +1,158 @@
+{
+  "name": "Post-Call CRM Updater (PoC v1)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "post-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Receive Transcript",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "post-call-crm-updater"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate incoming payload\nconst input = $input.first().json;\n\nconst required = ['opportunity_id', 'transcript'];\nconst missing = required.filter(f => !input[f]);\n\nif (missing.length > 0) {\n  throw new Error(`Missing required fields: ${missing.join(', ')}`);\n}\n\n// Build context for LLM\nconst context = {\n  opportunity_id: input.opportunity_id,\n  opportunity_name: input.opportunity_name || 'Unknown',\n  account_tier: input.account_tier || 'T2',\n  current_stage: input.current_stage || 'S1_Discovery',\n  ae_name: input.ae_name || 'Unknown',\n  previous_scores: input.previous_scores || { M: 0, E: 0, DC: 0, DP: 0, I: 0, C_champ: 0, C_comp: 0 },\n  transcript: input.transcript,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: context }];"
+      },
+      "id": "validate-input",
+      "name": "Validate & Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "=Analyze the following call transcript for MEDDICC qualification.\n\nCONTEXT:\n- Opportunity: {{ $json.opportunity_name }}\n- Account Tier: {{ $json.account_tier }}\n- Current Stage: {{ $json.current_stage }}\n- Previous MEDDICC Scores: M={{ $json.previous_scores.M }}, E={{ $json.previous_scores.E }}, DC={{ $json.previous_scores.DC }}, DP={{ $json.previous_scores.DP }}, I={{ $json.previous_scores.I }}, C_champ={{ $json.previous_scores.C_champ }}, C_comp={{ $json.previous_scores.C_comp }}\n- AE Name: {{ $json.ae_name }}\n\nTRANSCRIPT:\n\"\"\"\n{{ $json.transcript }}\n\"\"\"\n\nExtract MEDDICC elements and return the result as JSON with this structure:\n{\n  \"meddicc_assessment\": {\n    \"metrics\": { \"score\": 0-3, \"evidence\": \"quote\", \"gaps\": \"what's missing\", \"confidence\": \"HIGH|MEDIUM|LOW\" },\n    \"economic_buyer\": { \"score\": 0-3, \"evidence\": \"...\", \"gaps\": \"...\", \"confidence\": \"...\" },\n    \"decision_criteria\": { \"score\": 0-3, \"evidence\": \"...\", \"gaps\": \"...\", \"confidence\": \"...\" },\n    \"decision_process\": { \"score\": 0-3, \"evidence\": \"...\", \"gaps\": \"...\", \"confidence\": \"...\" },\n    \"identify_pain\": { \"score\": 0-3, \"evidence\": \"...\", \"gaps\": \"...\", \"confidence\": \"...\" },\n    \"champion\": { \"score\": 0-3, \"evidence\": \"...\", \"gaps\": \"...\", \"confidence\": \"...\" },\n    \"competition\": { \"score\": 0-3, \"evidence\": \"...\", \"gaps\": \"...\", \"confidence\": \"...\" }\n  },\n  \"composite_score\": { \"value\": 0-100, \"interpretation\": \"STRONG|DEVELOPING|WEAK|CRITICAL\" },\n  \"stage_gate\": {\n    \"next_stage_eligible\": true|false,\n    \"blocking_elements\": [ { \"element\": \"name\", \"required\": N, \"actual\": N } ]\n  },\n  \"next_best_actions\": [\n    { \"priority\": 1, \"action\": \"description\", \"element_targeted\": \"name\", \"suggested_question\": \"...\" }\n  ],\n  \"coaching_feedback\": {\n    \"strengths\": [\"...\"],\n    \"improvements\": [\"...\"],\n    \"missed_opportunities\": [\"...\"]\n  },\n  \"crm_updates\": {\n    \"MEDDICC_M_Score__c\": \"0-3\",\n    \"MEDDICC_Metrics__c\": \"description\",\n    \"MEDDICC_E_Score__c\": \"0-3\",\n    \"MEDDICC_EB_Access__c\": \"Not Identified|Identified|Engaged|Supportive\",\n    \"MEDDICC_DC_Score__c\": \"0-3\",\n    \"MEDDICC_DC_Align__c\": \"Unknown|Partial|Full|We Shaped\",\n    \"MEDDICC_DP_Score__c\": \"0-3\",\n    \"MEDDICC_I_Score__c\": \"0-3\",\n    \"MEDDICC_Pain_Severity__c\": \"Low|Medium|High|Critical\",\n    \"MEDDICC_C_Score__c\": \"0-3\",\n    \"MEDDICC_Champ_Status__c\": \"None|Potential|Confirmed|Active\",\n    \"MEDDICC_Comp_Score__c\": \"0-3\",\n    \"MEDDICC_Comp_Position__c\": \"Losing|Even|Winning|Sole Source\",\n    \"MEDDICC_Total__c\": 0-100\n  },\n  \"summary_ko\": \"2-3 sentence Korean summary for Slack notification\"\n}\n\nReturn ONLY valid JSON. No markdown, no explanation outside the JSON."
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "You are the MEDDICC Qualification Agent for a B2B Sales AI system.\n\nRULES:\n1. EVIDENCE-BASED ONLY: Never infer scores without explicit evidence. Quote the transcript verbatim.\n2. CONSERVATIVE SCORING: When uncertain, score lower and flag as LOW confidence.\n3. BILINGUAL: The transcript may be in Korean or English. Handle both.\n4. NO HALLUCINATION: If an element is not discussed, score 0.\n5. Return ONLY valid JSON.\n\nSCORING RUBRIC (0-3 for each element):\n- M (Metrics): 0=not discussed, 1=qualitative, 2=specific numbers, 3=ROI validated by EB\n- E (Economic Buyer): 0=not identified, 1=name known, 2=met+priorities understood, 3=supports+budget confirmed\n- DC (Decision Criteria): 0=unknown, 1=informal, 2=full list+alignment, 3=we shaped criteria\n- DP (Decision Process): 0=unknown, 1=rough, 2=all steps documented, 3=timing confirmed+we influence\n- I (Identify Pain): 0=not identified, 1=surface, 2=specific+impact quantified, 3=multi-stakeholder+EB priority\n- C_champ (Champion): 0=none, 1=interested, 2=power+access confirmed, 3=all 3 conditions+actively advocates\n- C_comp (Competition): 0=unknown, 1=existence acknowledged, 2=identified+analyzed, 3=advantage secured\n\nCOMPOSITE: (M×0.15+E×0.20+DC×0.10+DP×0.10+I×0.20+C_champ×0.20+C_comp×0.05)×100/3\n\nSTAGE GATES:\nS2→S3: M≥1, I≥2, C_champ≥1\nS3→S4: M≥2, E≥1, DC≥2, I≥2, C_champ≥2\nS4→S5: All≥2, E≥2\nS5→S6: All≥2, DP≥2, E≥2\nS6→CW: Composite≥80",
+          "maxTokens": 4096,
+          "temperature": 0.1
+        }
+      },
+      "id": "openai-meddicc",
+      "name": "OpenAI: MEDDICC Extraction",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [660, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "CONFIGURE_ME",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse LLM response and prepare CRM update + notification\nconst input = $('Validate & Prepare').first().json;\nconst llmResponse = $input.first().json;\n\n// Parse the JSON from LLM response\nlet extraction;\ntry {\n  // Handle case where response is already parsed or is a string\n  if (typeof llmResponse.message === 'string') {\n    // Remove any markdown code fences if present\n    let cleaned = llmResponse.message.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    extraction = JSON.parse(cleaned);\n  } else if (llmResponse.message?.content) {\n    let cleaned = llmResponse.message.content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    extraction = JSON.parse(cleaned);\n  } else {\n    extraction = llmResponse;\n  }\n} catch (e) {\n  throw new Error(`Failed to parse LLM response: ${e.message}`);\n}\n\n// Calculate composite score if not present\nconst scores = extraction.meddicc_assessment;\nif (!extraction.composite_score || !extraction.composite_score.value) {\n  const m = scores.metrics.score;\n  const e = scores.economic_buyer.score;\n  const dc = scores.decision_criteria.score;\n  const dp = scores.decision_process.score;\n  const i = scores.identify_pain.score;\n  const c = scores.champion.score;\n  const comp = scores.competition.score;\n  \n  const composite = (m*0.15 + e*0.20 + dc*0.10 + dp*0.10 + i*0.20 + c*0.20 + comp*0.05) * 100 / 3;\n  extraction.composite_score = {\n    value: Math.round(composite * 100) / 100,\n    interpretation: composite >= 80 ? 'STRONG' : composite >= 60 ? 'DEVELOPING' : composite >= 40 ? 'WEAK' : 'CRITICAL'\n  };\n}\n\n// Build Slack notification\nconst prevScores = input.previous_scores;\nconst scoreEmoji = (curr, prev) => curr > prev ? '⬆️' : curr < prev ? '⬇️' : '➡️';\n\nconst slackMessage = {\n  blocks: [\n    {\n      type: 'header',\n      text: { type: 'plain_text', text: `📞 Post-Call MEDDICC Update: ${input.opportunity_name}` }\n    },\n    {\n      type: 'section',\n      fields: [\n        { type: 'mrkdwn', text: `*AE:* ${input.ae_name}` },\n        { type: 'mrkdwn', text: `*Tier:* ${input.account_tier}` },\n        { type: 'mrkdwn', text: `*Stage:* ${input.current_stage}` },\n        { type: 'mrkdwn', text: `*Composite:* ${extraction.composite_score.value} (${extraction.composite_score.interpretation})` }\n      ]\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: `*MEDDICC Scores:*\\n` +\n          `M: ${scores.metrics.score}/3 ${scoreEmoji(scores.metrics.score, prevScores.M)} | ` +\n          `E: ${scores.economic_buyer.score}/3 ${scoreEmoji(scores.economic_buyer.score, prevScores.E)} | ` +\n          `DC: ${scores.decision_criteria.score}/3 ${scoreEmoji(scores.decision_criteria.score, prevScores.DC)} | ` +\n          `DP: ${scores.decision_process.score}/3 ${scoreEmoji(scores.decision_process.score, prevScores.DP)} | ` +\n          `I: ${scores.identify_pain.score}/3 ${scoreEmoji(scores.identify_pain.score, prevScores.I)} | ` +\n          `C: ${scores.champion.score}/3 ${scoreEmoji(scores.champion.score, prevScores.C_champ)} | ` +\n          `Comp: ${scores.competition.score}/3 ${scoreEmoji(scores.competition.score, prevScores.C_comp)}`\n      }\n    },\n    {\n      type: 'section',\n      text: { type: 'mrkdwn', text: `*요약:* ${extraction.summary_ko || 'N/A'}` }\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: `*Next Best Action:* ${extraction.next_best_actions?.[0]?.action || 'N/A'}`\n      }\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: extraction.stage_gate?.next_stage_eligible\n          ? '✅ *Stage Gate:* 다음 단계 진입 조건 충족'\n          : `⚠️ *Stage Gate:* 다음 단계 미충족 — ${(extraction.stage_gate?.blocking_elements || []).map(b => `${b.element}(${b.actual}/${b.required})`).join(', ')}`\n      }\n    },\n    {\n      type: 'actions',\n      elements: [\n        { type: 'button', text: { type: 'plain_text', text: '✅ Approve CRM Update' }, style: 'primary', action_id: 'approve_crm', value: input.opportunity_id },\n        { type: 'button', text: { type: 'plain_text', text: '✏️ Edit Before Saving' }, action_id: 'edit_crm', value: input.opportunity_id },\n        { type: 'button', text: { type: 'plain_text', text: '❌ Reject' }, style: 'danger', action_id: 'reject_crm', value: input.opportunity_id }\n      ]\n    }\n  ]\n};\n\nreturn [{\n  json: {\n    ...input,\n    extraction,\n    crm_updates: extraction.crm_updates,\n    slack_message: slackMessage,\n    db_record: {\n      opportunity_id: input.opportunity_id,\n      opportunity_name: input.opportunity_name,\n      account_tier: input.account_tier,\n      current_stage: input.current_stage,\n      m_score: scores.metrics.score,\n      e_score: scores.economic_buyer.score,\n      dc_score: scores.decision_criteria.score,\n      dp_score: scores.decision_process.score,\n      i_score: scores.identify_pain.score,\n      c_champ_score: scores.champion.score,\n      c_comp_score: scores.competition.score,\n      composite_score: extraction.composite_score.value,\n      extraction_result: extraction,\n      stage_gate_passed: extraction.stage_gate?.next_stage_eligible || false,\n      blocking_elements: extraction.stage_gate?.blocking_elements || []\n    }\n  }\n}];"
+      },
+      "id": "process-result",
+      "name": "Process & Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO meddicc_extractions (opportunity_id, opportunity_name, account_tier, current_stage, m_score, e_score, dc_score, dp_score, i_score, c_champ_score, c_comp_score, composite_score, extraction_result, stage_gate_passed, blocking_elements) VALUES ('{{ $json.db_record.opportunity_id }}', '{{ $json.db_record.opportunity_name }}', '{{ $json.db_record.account_tier }}', '{{ $json.db_record.current_stage }}', {{ $json.db_record.m_score }}, {{ $json.db_record.e_score }}, {{ $json.db_record.dc_score }}, {{ $json.db_record.dp_score }}, {{ $json.db_record.i_score }}, {{ $json.db_record.c_champ_score }}, {{ $json.db_record.c_comp_score }}, {{ $json.db_record.composite_score }}, '{{ JSON.stringify($json.db_record.extraction_result) }}'::jsonb, {{ $json.db_record.stage_gate_passed }}, '{{ JSON.stringify($json.db_record.blocking_elements) }}'::jsonb) RETURNING id;",
+        "options": {}
+      },
+      "id": "save-to-db",
+      "name": "PostgreSQL: Save Extraction",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1120, 200],
+      "credentials": {
+        "postgres": {
+          "id": "CONFIGURE_ME",
+          "name": "Sales Agent DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Validate & Prepare').first().json.slack_webhook_url || $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.slack_message) }}",
+        "options": {}
+      },
+      "id": "slack-notify",
+      "name": "Slack: Notify AE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'success', opportunity_id: $('Validate & Prepare').first().json.opportunity_id, composite_score: $json.extraction.composite_score, stage_gate: $json.extraction.stage_gate, next_best_action: $json.extraction.next_best_actions?.[0]?.action, message: 'MEDDICC extraction complete. Notification sent.' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: Receive Transcript": {
+      "main": [
+        [{ "node": "Validate & Prepare", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validate & Prepare": {
+      "main": [
+        [{ "node": "OpenAI: MEDDICC Extraction", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI: MEDDICC Extraction": {
+      "main": [
+        [{ "node": "Process & Format", "type": "main", "index": 0 }]
+      ]
+    },
+    "Process & Format": {
+      "main": [
+        [
+          { "node": "PostgreSQL: Save Extraction", "type": "main", "index": 0 },
+          { "node": "Slack: Notify AE", "type": "main", "index": 0 },
+          { "node": "Respond to Webhook", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "sales-agent-poc-v1"
+  },
+  "tags": [
+    { "name": "poc-v1" },
+    { "name": "qualification-agent" },
+    { "name": "meddicc" }
+  ]
+}

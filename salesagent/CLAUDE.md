@@ -9,14 +9,16 @@
 
 ## Current State
 
-이 프로젝트는 아직 **코드가 없는 설계 단계**입니다. 현재 자산은 전부 Markdown 문서:
+이 프로젝트는 **설계 완료 + PoC 스캐폴딩 단계**입니다.
 
-- Playbook (영업 프로세스 표준, 방법론, 스크립트, 템플릿)
-- Agent 아키텍처 설계 (BCG 5-Agent model 기반)
+- Playbook (영업 프로세스 표준, 방법론, 스크립트, 템플릿) — 9개 문서 + 7개 Play
+- Agent 아키텍처 설계 (BCG 5-Agent model 기반) — 5개 Agent 상세 프롬프트 완료
 - CRM 스키마 설계 (Salesforce/HubSpot 대응)
+- 산업 리서치 & 벤치마크 — KPI, AI 사례, 기술스택 비교
+- Agent PoC 3종 코드 스캐폴딩 (n8n + Claude API + pgvector)
 - 프로젝트 스코프 & 로드맵
 
-실제 CRM, 고객 데이터, LLM 연동은 아직 없습니다.
+실제 CRM, 고객 데이터, LLM 연동은 아직 없습니다. PoC 실행에는 API 키와 Docker가 필요합니다.
 
 ## Directory Structure
 
@@ -25,8 +27,41 @@ salesagent/
 ├── CLAUDE.md                          # 이 파일. 프로젝트 가이드.
 ├── agent.md                           # Agent 정의 (아키텍처, 역할, 원칙, 기술스택)
 ├── scope.md                           # 프로젝트 범위, 15-step 실행 계획, 성공 기준
+├── todo.md                            # 작업 목록 및 다음 작업 추천
+├── agent/                             # Agent별 상세 프롬프트 & 스펙
+│   ├── 01_qualification_agent.md      # MEDDICC 추출, 딜 스코어링, stage gate 검증
+│   ├── 02_orchestration_agent.md      # 라우팅, 핸드오프, 에스컬레이션, 우선순위 관리
+│   ├── 03_lead_generation_agent.md    # ICP 스코어링, 리드 enrichment, 아웃바운드 메시지
+│   ├── 04_deal_conversion_agent.md    # 제안서, 가격 협상, 계약 검토, 온보딩
+│   └── 05_customer_success_agent.md   # Health Score, 리스크 감지, expansion, QBR
 ├── crm/
 │   └── schema.md                      # CRM 데이터 모델, Dashboard 5종, API 연동 스펙
+├── poc/                               # Agent PoC 3종 코드 스캐폴딩
+│   ├── README.md                      # PoC 가이드 (Quick Start, Architecture, Cost)
+│   ├── docker-compose.yml             # n8n + PostgreSQL/pgvector
+│   ├── .env.example                   # API 키 템플릿
+│   ├── workflows/
+│   │   ├── post_call_crm_updater.json # PoC #1: MEDDICC 추출 (Webhook → Claude → DB → Slack)
+│   │   ├── weekly_ops_report.json     # PoC #2: 주간 파이프라인 리포트 (Schedule → SQL → Claude → Slack)
+│   │   └── lead_enrichment_scorer.json # PoC #3: ICP 3축 스코어링 (Webhook → Claude → DB → Slack)
+│   ├── prompts/
+│   │   ├── meddicc_extractor.md       # PoC #1 시스템 프롬프트
+│   │   ├── weekly_ops_report.md       # PoC #2 시스템 프롬프트
+│   │   └── lead_enrichment_scorer.md  # PoC #3 시스템 프롬프트
+│   ├── scripts/
+│   │   ├── init_db.sql                # DB 초기화 (pgvector + 4 tables)
+│   │   ├── setup.sh                   # 초기 셋업 스크립트
+│   │   ├── test_webhook.sh            # PoC #1 테스트
+│   │   ├── test_ops_report.sh         # PoC #2 테스트
+│   │   └── test_lead_enrich.sh        # PoC #3 테스트
+│   └── fixtures/
+│       ├── sample_transcript.json     # PoC #1 테스트 데이터 (한국어 콜)
+│       ├── sample_pipeline_data.json  # PoC #2 테스트 데이터 (18 deals)
+│       └── sample_new_account.json    # PoC #3 테스트 데이터 (CloudMetrics Inc.)
+├── research/                          # 산업 리서치 & 벤치마크
+│   ├── 01_kpi_benchmarks.md           # 산업별 영업 KPI 벤치마크 (Win Rate, ACV, Cycle 등)
+│   ├── 02_ai_sales_agent_cases.md     # AI Sales Agent 실제 도입 사례 & 성과 분석
+│   └── 03_tech_stack_comparison.md    # n8n vs Zapier vs LangChain 기술스택 비교
 └── playbook/
     ├── 00_sales_process_canon.md      # 7단계 영업 프로세스 표준 (Canon)
     ├── 01_icp_and_scoring.md          # ICP 3축 프레임워크 + Account Scoring + Tiering
@@ -34,12 +69,17 @@ salesagent/
     ├── 03_call_scripts.md             # Cold call, Discovery, Demo, QBR 스크립트
     ├── 04_email_templates.md          # Outbound cadence + Follow-up + CS 이메일
     ├── 05_objection_handling.md       # 10대 반론 대응 가이드
+    ├── 06_competitive_battle_card.md  # 경쟁사 Battle Card 템플릿 + 예시
+    ├── 07_pricing_discount_matrix.md  # 가격 체계, 할인 승인 매트릭스, 번들 규칙
+    ├── 08_sales_onboarding_curriculum.md # 신규 Rep 30/60/90일 온보딩 커리큘럼
     └── plays/
         ├── play_01_new_logo_outbound_t2t3.md
         ├── play_02_strategic_account_expansion_t1.md
         ├── play_03_renewal_rescue.md
         ├── play_04_cs_driven_upsell.md
-        └── play_05_win_loss_analysis.md
+        ├── play_05_win_loss_analysis.md
+        ├── play_06_inbound_lead_handling.md
+        └── play_07_partner_channel_sales.md
 ```
 
 ## Key Concepts
@@ -104,10 +144,12 @@ Metrics, Economic Buyer, Decision Criteria, Decision Process, Identify Pain, Cha
 3. CRM 필수 필드가 있으면 `crm/schema.md`에 추가
 4. `scope.md`의 Phase 해당 위치에 반영
 
-### 코드 단계 진입 시 (향후)
-- 첫 Agent PoC: Post-Call CRM Updater (Play 01의 Agent 파트 참조)
-- Tech stack: n8n (workflow) + Claude/OpenAI API (LLM) + CRM API
-- Agent prompt는 각 Play의 "Agent System Prompt 요약" 섹션에서 시작
+### PoC 실행 시
+- **PoC #1 스캐폴딩 완료**: `poc/` 디렉토리 참조
+- **실행 방법**: `cd poc && ./scripts/setup.sh` (Docker 필요)
+- **Tech stack**: n8n (self-hosted Docker) + OpenAI GPT-4o API + CRM n8n nodes + pgvector + Helicone
+- **Production 전환**: CrewAI + n8n + pgvector + Langfuse (상세: `research/03_tech_stack_comparison.md` §7)
+- Agent prompt는 `agent/` 하위 상세 스펙에서 시작 (PoC용 축약 버전: `poc/prompts/`)
 - RAG 구축 시 이 playbook 문서들이 벡터 DB에 임베딩될 소스
 
 ## References
@@ -123,10 +165,11 @@ Metrics, Economic Buyer, Decision Criteria, Decision Process, Identify Pain, Cha
 
 ## Next Steps (현재 기준)
 
-| 순서 | 작업 | 선행 조건 |
-|------|------|----------|
-| 1 | 파일럿 포트폴리오사 선정 | PE Ops VP 의사결정 |
-| 2 | ICP 기준값을 실제 고객 데이터로 검증 | 고객 데이터 접근 |
-| 3 | CRM 인스턴스 접근 + 필드 매핑 | CRM admin 권한 |
-| 4 | Agent PoC #1 빌드 (Post-Call Updater) | CRM API + LLM API 확보 |
-| 5 | Playbook RAG 벡터화 | Vector DB 선정 (pgvector/Pinecone) |
+| 순서 | 작업 | 선행 조건 | 상태 |
+|------|------|----------|------|
+| 1 | PoC #1 실행 (Post-Call CRM Updater) | OpenAI API 키 + Docker | 스캐폴딩 완료 (`poc/`) |
+| 2 | 파일럿 포트폴리오사 선정 | PE Ops VP 의사결정 | 대기 |
+| 3 | ICP 기준값을 실제 고객 데이터로 검증 | 고객 데이터 접근 | 대기 |
+| 4 | CRM 인스턴스 접근 + 필드 매핑 | CRM admin 권한 | 대기 |
+| 5 | PoC #2-3 빌드 (Ops Report + Lead Enrichment) | PoC #1 검증 완료 | 대기 |
+| 6 | Playbook RAG 벡터화 | pgvector 구축 (PoC Docker에 포함) | 대기 |

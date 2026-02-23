@@ -343,6 +343,28 @@ MEDDICC Score = (M×0.15 + E×0.20 + DC×0.10 + DP×0.10 + I×0.20 + C_champ×0.
 
 ---
 
+## CRM 필드 매핑 (Playbook → API)
+
+이 가이드의 필드명은 가독성 중심의 설명형 이름입니다. CRM API 호출 시에는 `crm/schema.md`의 Salesforce API 이름을 사용하세요.
+
+| Playbook 필드명 | CRM API Name | Object | 비고 |
+|-----------------|-------------|--------|------|
+| `Metrics_Primary` | `MEDDICC_Metrics__c` | Opportunity | Text Area |
+| `Metrics_Business_Impact` | `MEDDICC_Metrics_Impact__c` | Opportunity | Currency |
+| `Metrics_Validated` | `MEDDICC_M_Score__c` | Opportunity | Picklist(0-3) |
+| `Economic_Buyer_Name` | `MEDDICC_EB__c` | Opportunity | Lookup(Contact) |
+| `Economic_Buyer_Title` | `MEDDICC_EB_Access__c` | Opportunity | Picklist |
+| `Decision_Criteria` | `MEDDICC_DC__c` | Opportunity | Text Area |
+| `Decision_Process` | `MEDDICC_DP__c` | Opportunity | Text Area |
+| `Pain_Primary` | `MEDDICC_Pain__c` | Opportunity | Text Area |
+| `Champion_Name` | `MEDDICC_Champion__c` | Opportunity | Lookup(Contact) |
+| `Competitor_Primary` | `MEDDICC_Competitor__c` | Opportunity | Picklist |
+| `Competitive_Position` | `MEDDICC_Comp_Position__c` | Opportunity | Picklist |
+
+> **참고**: Agent 프롬프트(`agent/01_qualification_agent.md`)와 PoC 추출기(`poc/prompts/meddicc_extractor.md`)는 이미 CRM API 이름을 사용합니다.
+
+---
+
 ## Agent Role: MEDDICC Automation
 
 ### 자동화 범위

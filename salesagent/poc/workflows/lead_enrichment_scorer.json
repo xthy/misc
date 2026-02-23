@@ -1,0 +1,182 @@
+{
+  "name": "Lead Enrichment & ICP Scorer (PoC v3)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-enrich",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-lead-enrich",
+      "name": "Webhook: Receive New Account",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "lead-enrichment-scorer"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate incoming payload\nconst input = $input.first().json;\n\nconst required = ['company_name', 'domain'];\nconst missing = required.filter(f => !input[f]);\n\nif (missing.length > 0) {\n  throw new Error(`Missing required fields: ${missing.join(', ')}. company_name and domain are required.`);\n}\n\n// Build enrichment context with optional fields\nconst context = {\n  // Required\n  company_name: input.company_name,\n  domain: input.domain,\n\n  // Optional firmographic\n  industry: input.industry || null,\n  sub_industry: input.sub_industry || null,\n  employee_count: input.employee_count || null,\n  annual_revenue: input.annual_revenue || null,\n  hq_location: input.hq_location || null,\n  founded_year: input.founded_year || null,\n  growth_rate: input.growth_rate || null,\n  funding_stage: input.funding_stage || null,\n  funding_amount: input.funding_amount || null,\n  funding_date: input.funding_date || null,\n\n  // Optional technographic\n  crm_system: input.crm_system || null,\n  tech_maturity: input.tech_maturity || null,\n  current_solution: input.current_solution || null,\n  integration_need: input.integration_need || null,\n  security_requirement: input.security_requirement || null,\n  tech_stack: input.tech_stack || null,\n\n  // Optional needs-based\n  core_pain: input.core_pain || null,\n  budget_status: input.budget_status || null,\n  timeline: input.timeline || null,\n  decision_complexity: input.decision_complexity || null,\n  champion_presence: input.champion_presence || null,\n\n  // Optional intent signals\n  intent_signals: input.intent_signals || [],\n\n  // Optional engagement data\n  engagement_activities: input.engagement_activities || [],\n\n  // Optional metadata\n  account_id: input.account_id || `ACCT-${Date.now()}`,\n  notes: input.notes || null,\n  estimated_acv: input.estimated_acv || null,\n  timestamp: new Date().toISOString()\n};\n\n// Count provided vs missing fields for LLM context\nconst firmographicFields = ['industry', 'employee_count', 'annual_revenue', 'hq_location', 'growth_rate', 'funding_stage'];\nconst technographicFields = ['crm_system', 'tech_maturity', 'current_solution', 'integration_need', 'security_requirement'];\nconst needsFields = ['core_pain', 'budget_status', 'timeline', 'decision_complexity', 'champion_presence'];\n\ncontext._field_status = {\n  firmographic_provided: firmographicFields.filter(f => context[f] !== null).length,\n  firmographic_missing: firmographicFields.filter(f => context[f] === null).length,\n  technographic_provided: technographicFields.filter(f => context[f] !== null).length,\n  technographic_missing: technographicFields.filter(f => context[f] === null).length,\n  needs_provided: needsFields.filter(f => context[f] !== null).length,\n  needs_missing: needsFields.filter(f => context[f] === null).length,\n  intent_signals_count: context.intent_signals.length,\n  engagement_activities_count: context.engagement_activities.length\n};\n\nreturn [{ json: context }];"
+      },
+      "id": "validate-input-lead",
+      "name": "Validate & Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "=Enrich and score the following account for ICP fit.\n\nACCOUNT DATA:\n- Company Name: {{ $json.company_name }}\n- Domain: {{ $json.domain }}\n- Industry: {{ $json.industry || 'UNKNOWN — please research/estimate' }}\n- Employee Count: {{ $json.employee_count || 'UNKNOWN — please research/estimate' }}\n- Annual Revenue: {{ $json.annual_revenue || 'UNKNOWN — please research/estimate' }}\n- HQ Location: {{ $json.hq_location || 'UNKNOWN — please research/estimate' }}\n- Growth Rate: {{ $json.growth_rate || 'UNKNOWN — please research/estimate' }}\n- Funding Stage: {{ $json.funding_stage || 'UNKNOWN — please research/estimate' }}\n- Funding Amount: {{ $json.funding_amount || 'N/A' }}\n- Funding Date: {{ $json.funding_date || 'N/A' }}\n- CRM System: {{ $json.crm_system || 'UNKNOWN — please research/estimate' }}\n- Tech Maturity: {{ $json.tech_maturity || 'UNKNOWN — please research/estimate' }}\n- Current Solution: {{ $json.current_solution || 'UNKNOWN — please research/estimate' }}\n- Integration Need: {{ $json.integration_need || 'UNKNOWN — please research/estimate' }}\n- Security Requirement: {{ $json.security_requirement || 'UNKNOWN — please research/estimate' }}\n- Tech Stack: {{ $json.tech_stack || 'UNKNOWN' }}\n- Core Pain: {{ $json.core_pain || 'UNKNOWN — please assess' }}\n- Budget Status: {{ $json.budget_status || 'UNKNOWN — please assess' }}\n- Timeline: {{ $json.timeline || 'UNKNOWN — please assess' }}\n- Decision Complexity: {{ $json.decision_complexity || 'UNKNOWN — please assess' }}\n- Champion Presence: {{ $json.champion_presence || 'UNKNOWN — please assess' }}\n- Notes: {{ $json.notes || 'None' }}\n\nFIELD STATUS:\n- Firmographic: {{ $json._field_status.firmographic_provided }}/6 provided, {{ $json._field_status.firmographic_missing }}/6 need enrichment\n- Technographic: {{ $json._field_status.technographic_provided }}/5 provided, {{ $json._field_status.technographic_missing }}/5 need enrichment\n- Needs-based: {{ $json._field_status.needs_provided }}/5 provided, {{ $json._field_status.needs_missing }}/5 need enrichment\n\nINTENT SIGNALS OBSERVED:\n{{ JSON.stringify($json.intent_signals) }}\n\nENGAGEMENT ACTIVITIES OBSERVED:\n{{ JSON.stringify($json.engagement_activities) }}\n\nPerform the following:\n1. Research/estimate any UNKNOWN fields based on company name, domain, industry context, and available data.\n2. Score each of the 16 ICP criteria (1-5) with evidence.\n3. Calculate Fit Score using the 3-axis weighted formula.\n4. Detect and score Intent signals (0-30).\n5. Calculate Engagement Score from activities (0-30).\n6. Compute Total Account Score and assign grades.\n\nReturn ONLY valid JSON. No markdown, no explanation outside the JSON."
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "You are the Lead Generation Agent (Enrichment & Scoring Mode) for a B2B Sales AI system.\n\nTASK: Enrich account data and calculate ICP scores using the 3-axis weighted model.\n\n═══════════════════════════════════════\nRULES\n═══════════════════════════════════════\n\n1. RESEARCH-BASED: For UNKNOWN fields, estimate based on company name, domain, industry context, and typical patterns. Mark confidence level for each estimate.\n2. CONSERVATIVE SCORING: When data is estimated (not provided), score conservatively and flag confidence as LOW or MEDIUM.\n3. BILINGUAL: Analysis text (evidence, reasoning) in Korean. Field names and values in English.\n4. NO HALLUCINATION: If you truly cannot estimate a field, assign score 1 (minimum) and mark as \"데이터 부족 — 수동 검증 필요\".\n5. Return ONLY valid JSON.\n\n═══════════════════════════════════════\nAXIS 1: FIRMOGRAPHIC SCORING (6 criteria, each 1-5, max 30, weight 40%)\n═══════════════════════════════════════\n\n| Criterion       | 5 (Ideal)                    | 3 (Good)                       | 1 (Poor)                     |\n|-----------------|------------------------------|--------------------------------|------------------------------|\n| Industry        | SaaS, FinTech, HealthTech    | Manufacturing, Retail, E-comm  | Government, Non-profit, Edu  |\n| Employee Count  | 200-2,000                    | 50-199 or 2,001-10,000         | <50 or >10,000               |\n| Annual Revenue  | $20M-$500M                   | $5M-$19M or $501M-$2B         | <$5M or >$2B                 |\n| Region          | Primary markets (KR, US, JP) | Secondary markets (SEA, EU)    | No-go regions                |\n| Growth Rate     | >20% YoY                     | 10-20% YoY                    | <10% or declining            |\n| Funding Stage   | Series B-D or PE-backed      | Series A or Public (mid-cap)   | Pre-seed/Seed or mega-cap    |\n\n═══════════════════════════════════════\nAXIS 2: TECHNOGRAPHIC SCORING (5 criteria, each 1-5, max 25, weight 30%)\n═══════════════════════════════════════\n\n| Criterion           | 5 (Ideal)                  | 3 (Good)                    | 1 (Poor)                    |\n|---------------------|----------------------------|-----------------------------|-----------------------------|\n| CRM                 | Salesforce                 | HubSpot, Dynamics           | None or custom-built        |\n| Tech Maturity       | Cloud-native, API-first    | Hybrid (cloud + on-prem)    | Legacy on-prem only         |\n| Current Solution    | Competitor or manual       | Partial solution            | Locked-in competitor (3yr)  |\n| Integration Need    | Standard API possible      | Custom integration needed   | Integration impossible      |\n| Security Requirement| Standard (SOC2)            | Enhanced (HIPAA etc.)       | Government-level (FedRAMP)  |\n\n═══════════════════════════════════════\nAXIS 3: NEEDS-BASED SCORING (5 criteria, each 1-5, max 25, weight 30%)\n═══════════════════════════════════════\n\n| Criterion           | 5 (Ideal)                    | 3 (Good)                     | 1 (Poor)                  |\n|---------------------|------------------------------|------------------------------|---------------------------|\n| Core Pain           | Direct problem match         | Related, low priority        | No problem awareness      |\n| Budget              | Secured or in process        | No budget but ROI works      | No budget, unclear ROI    |\n| Timeline            | Within 6 months              | 6-12 months                  | 12+ months or undefined   |\n| Decision Complexity | Single department             | 2-3 departments              | Enterprise-wide committee |\n| Champion Presence   | Confirmed advocate           | Interested contact           | No contact point          |\n\n═══════════════════════════════════════\nFIT SCORE FORMULA\n═══════════════════════════════════════\n\nFit_Score = (Firmo_Sum / 30 * 40) + (Techno_Sum / 25 * 30) + (Needs_Sum / 25 * 30)\n\nFit Grades:\n- A-Fit: 80-100\n- B-Fit: 60-79\n- C-Fit: 50-59\n- D-Fit: <50 → EXCLUDED\n\n═══════════════════════════════════════\nINTENT SCORE (0-30)\n═══════════════════════════════════════\n\n| Signal                              | Points |\n|-------------------------------------|--------|\n| Related keyword search surge        | +5     |\n| Competitor review/comparison visits | +5     |\n| Relevant job posting                | +4     |\n| Funding / M&A event                 | +4     |\n| Vendor contract expiry within 6mo   | +5     |\n| Industry regulatory change          | +3     |\n| Executive change (C-suite/VP)       | +4     |\n\nRules: Cap at 30. Same signal type does not stack.\n\n═══════════════════════════════════════\nENGAGEMENT SCORE (0-30)\n═══════════════════════════════════════\n\n| Activity                            | Points |\n|-------------------------------------|--------|\n| Website visit (3+ pages/session)    | +3     |\n| Content download                    | +4     |\n| Webinar/event attendance            | +5     |\n| Email reply                         | +5     |\n| Meeting attended                    | +8     |\n| Demo/PoC request                    | +10    |\n| Multi-department contact (2+ depts) | +5     |\n\nRules: Cap at 30. Each type counted once per 30-day window.\n\n═══════════════════════════════════════\nTOTAL SCORE & ACTION GRADE\n═══════════════════════════════════════\n\nTotal = Fit + Intent + Engagement (0-160)\n\n120-160: Hot     → 즉시 AE 배정, 24hr 접촉\n90-119:  Warm    → SDR 우선 시퀀스, 1주 내\n60-89:   Nurture → 자동 nurture, 월간 터치\n50-59:   Watch   → 분기 모니터링\n<50:     Excluded → 추적 중단\n\n═══════════════════════════════════════\nTIER CLASSIFICATION\n═══════════════════════════════════════\n\nT1 Strategic: Fit A + ACV > $100K\nT2 Core:      Fit A/B + ACV $25K-$100K\nT3 Long-tail: Fit B/C + ACV < $25K\nD-Fit → No tier (Excluded)\n\n═══════════════════════════════════════\nOUTPUT FORMAT (STRICT JSON)\n═══════════════════════════════════════\n\n{\n  \"enrichment\": {\n    \"company_name\": \"...\",\n    \"domain\": \"...\",\n    \"enriched_fields\": {\n      \"industry\": { \"value\": \"...\", \"source\": \"provided|estimated\", \"confidence\": \"HIGH|MEDIUM|LOW\" },\n      \"employee_count\": { \"value\": N, \"source\": \"...\", \"confidence\": \"...\" },\n      \"annual_revenue\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"hq_location\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"growth_rate\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"funding_stage\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"crm_system\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"tech_maturity\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"current_solution\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"integration_need\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"security_requirement\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"core_pain\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"budget_status\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"timeline\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"decision_complexity\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" },\n      \"champion_presence\": { \"value\": \"...\", \"source\": \"...\", \"confidence\": \"...\" }\n    },\n    \"research_notes_ko\": \"한국어로 작성한 리서치 요약 (회사 개요, 시장 포지셔닝, 주요 특징)\"\n  },\n  \"fit_score\": {\n    \"total\": 0-100,\n    \"grade\": \"A|B|C|D\",\n    \"firmographic\": {\n      \"industry\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"employee_count\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"annual_revenue\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"region\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"growth_rate\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"funding_stage\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"raw_sum\": 6-30,\n      \"weighted\": 0-40\n    },\n    \"technographic\": {\n      \"crm\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"tech_maturity\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"current_solution\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"integration_need\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"security_requirement\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"raw_sum\": 5-25,\n      \"weighted\": 0-30\n    },\n    \"needs_based\": {\n      \"core_pain\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"budget\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"timeline\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"decision_complexity\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"champion_presence\": { \"score\": 1-5, \"evidence_ko\": \"근거\" },\n      \"raw_sum\": 5-25,\n      \"weighted\": 0-30\n    }\n  },\n  \"intent_score\": {\n    \"total\": 0-30,\n    \"signals\": [\n      { \"type\": \"signal_name\", \"points\": N, \"detected_at\": \"date\", \"evidence_ko\": \"근거\" }\n    ]\n  },\n  \"engagement_score\": {\n    \"total\": 0-30,\n    \"activities\": [\n      { \"type\": \"activity_name\", \"points\": N, \"date\": \"date\", \"evidence_ko\": \"근거\" }\n    ]\n  },\n  \"total_account_score\": 0-160,\n  \"action_grade\": \"Hot|Warm|Nurture|Watch|Excluded\",\n  \"estimated_acv\": \"$NK\",\n  \"tier\": \"T1|T2|T3\",\n  \"recommended_action_ko\": \"한국어 추천 액션\",\n  \"personalization_points_ko\": [\"한국어 개인화 포인트 1\", \"...\"],\n  \"data_quality\": {\n    \"provided_fields\": N,\n    \"estimated_fields\": N,\n    \"overall_confidence\": \"HIGH|MEDIUM|LOW\",\n    \"manual_verification_needed\": [\"list of fields needing verification\"]\n  },\n  \"summary_ko\": \"2-3 sentence Korean summary for Slack notification\"\n}\n\nReturn ONLY valid JSON. No markdown, no explanation outside the JSON.",
+          "maxTokens": 4096,
+          "temperature": 0.2
+        }
+      },
+      "id": "openai-enrichment",
+      "name": "OpenAI: Enrich & Score",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [660, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "CONFIGURE_ME",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse LLM response and calculate/verify scores\nconst input = $('Validate & Prepare').first().json;\nconst llmResponse = $input.first().json;\n\n// Parse the JSON from LLM response\nlet enrichment;\ntry {\n  if (typeof llmResponse.message === 'string') {\n    let cleaned = llmResponse.message.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    enrichment = JSON.parse(cleaned);\n  } else if (llmResponse.message?.content) {\n    let cleaned = llmResponse.message.content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    enrichment = JSON.parse(cleaned);\n  } else {\n    enrichment = llmResponse;\n  }\n} catch (e) {\n  throw new Error(`Failed to parse LLM response: ${e.message}`);\n}\n\n// ── Verify / Recalculate Fit Score ──\nconst firmo = enrichment.fit_score.firmographic;\nconst techno = enrichment.fit_score.technographic;\nconst needs = enrichment.fit_score.needs_based;\n\n// Recalculate raw sums from individual scores\nconst firmoSum = (firmo.industry?.score || 1) + (firmo.employee_count?.score || 1) +\n  (firmo.annual_revenue?.score || 1) + (firmo.region?.score || 1) +\n  (firmo.growth_rate?.score || 1) + (firmo.funding_stage?.score || 1);\n\nconst technoSum = (techno.crm?.score || 1) + (techno.tech_maturity?.score || 1) +\n  (techno.current_solution?.score || 1) + (techno.integration_need?.score || 1) +\n  (techno.security_requirement?.score || 1);\n\nconst needsSum = (needs.core_pain?.score || 1) + (needs.budget?.score || 1) +\n  (needs.timeline?.score || 1) + (needs.decision_complexity?.score || 1) +\n  (needs.champion_presence?.score || 1);\n\n// Apply weighted formula: Fit = (Firmo/30*40) + (Techno/25*30) + (Needs/25*30)\nconst firmoWeighted = Math.round((firmoSum / 30 * 40) * 100) / 100;\nconst technoWeighted = Math.round((technoSum / 25 * 30) * 100) / 100;\nconst needsWeighted = Math.round((needsSum / 25 * 30) * 100) / 100;\nconst fitScore = Math.round((firmoWeighted + technoWeighted + needsWeighted) * 100) / 100;\n\n// Assign Fit Grade\nlet fitGrade;\nif (fitScore >= 80) fitGrade = 'A';\nelse if (fitScore >= 60) fitGrade = 'B';\nelse if (fitScore >= 50) fitGrade = 'C';\nelse fitGrade = 'D';\n\n// Update enrichment with verified scores\nenrichment.fit_score.firmographic.raw_sum = firmoSum;\nenrichment.fit_score.firmographic.weighted = firmoWeighted;\nenrichment.fit_score.technographic.raw_sum = technoSum;\nenrichment.fit_score.technographic.weighted = technoWeighted;\nenrichment.fit_score.needs_based.raw_sum = needsSum;\nenrichment.fit_score.needs_based.weighted = needsWeighted;\nenrichment.fit_score.total = fitScore;\nenrichment.fit_score.grade = fitGrade;\n\n// ── Verify / Recalculate Intent Score ──\nconst intentPointsMap = {\n  keyword_surge: 5, competitor_review: 5, job_posting: 4,\n  funding: 4, contract_expiry: 5, regulatory: 3, exec_change: 4\n};\nlet intentTotal = 0;\nif (enrichment.intent_score?.signals) {\n  const seenTypes = new Set();\n  for (const signal of enrichment.intent_score.signals) {\n    if (!seenTypes.has(signal.type)) {\n      seenTypes.add(signal.type);\n      intentTotal += signal.points || 0;\n    }\n  }\n}\nintentTotal = Math.min(intentTotal, 30);\nenrichment.intent_score.total = intentTotal;\n\n// ── Verify / Recalculate Engagement Score ──\nconst engagementPointsMap = {\n  website_visit: 3, content_download: 4, webinar: 5,\n  email_reply: 5, meeting: 8, demo_request: 10, multi_dept: 5\n};\nlet engagementTotal = 0;\nif (enrichment.engagement_score?.activities) {\n  const seenTypes = new Set();\n  for (const activity of enrichment.engagement_score.activities) {\n    if (!seenTypes.has(activity.type)) {\n      seenTypes.add(activity.type);\n      engagementTotal += activity.points || 0;\n    }\n  }\n}\nengagementTotal = Math.min(engagementTotal, 30);\nenrichment.engagement_score.total = engagementTotal;\n\n// ── Total Score & Action Grade ──\n// D-Fit accounts: Intent and Engagement are NOT added\nlet totalScore;\nif (fitGrade === 'D') {\n  totalScore = fitScore;\n  enrichment.intent_score.total = 0;\n  enrichment.engagement_score.total = 0;\n} else {\n  totalScore = fitScore + intentTotal + engagementTotal;\n}\ntotalScore = Math.round(totalScore * 100) / 100;\nenrichment.total_account_score = totalScore;\n\nlet actionGrade;\nif (totalScore >= 120) actionGrade = 'Hot';\nelse if (totalScore >= 90) actionGrade = 'Warm';\nelse if (totalScore >= 60) actionGrade = 'Nurture';\nelse if (totalScore >= 50) actionGrade = 'Watch';\nelse actionGrade = 'Excluded';\nenrichment.action_grade = actionGrade;\n\n// ── Tier Classification ──\nconst estimatedAcv = enrichment.estimated_acv || '$50K';\nconst acvNumeric = parseFloat(estimatedAcv.replace(/[^0-9.]/g, '')) * (estimatedAcv.includes('M') ? 1000 : 1);\n\nlet tier;\nif (fitGrade === 'D') {\n  tier = null; // Excluded — no tier\n} else if (fitGrade === 'A' && acvNumeric > 100) {\n  tier = 'T1';\n} else if ((fitGrade === 'A' || fitGrade === 'B') && acvNumeric >= 25) {\n  tier = 'T2';\n} else {\n  tier = 'T3';\n}\nenrichment.tier = tier;\n\n// ── Build Slack notification ──\nconst slackMessage = {\n  blocks: [\n    {\n      type: 'header',\n      text: { type: 'plain_text', text: `🎯 Lead Enrichment: ${input.company_name} — ${actionGrade}` }\n    },\n    {\n      type: 'section',\n      fields: [\n        { type: 'mrkdwn', text: `*Company:* ${input.company_name}` },\n        { type: 'mrkdwn', text: `*Domain:* ${input.domain}` },\n        { type: 'mrkdwn', text: `*Fit Score:* ${fitScore} (${fitGrade}-Fit)` },\n        { type: 'mrkdwn', text: `*Tier:* ${tier || 'Excluded'}` }\n      ]\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: `*Scores:*\\n` +\n          `Fit: ${fitScore}/100 | Intent: ${intentTotal}/30 | Engagement: ${engagementTotal}/30\\n` +\n          `*Total: ${totalScore}/160 → ${actionGrade}*`\n      }\n    },\n    {\n      type: 'section',\n      text: { type: 'mrkdwn', text: `*요약:* ${enrichment.summary_ko || 'N/A'}` }\n    },\n    {\n      type: 'section',\n      text: { type: 'mrkdwn', text: `*추천 액션:* ${enrichment.recommended_action_ko || 'N/A'}` }\n    }\n  ]\n};\n\n// ── Build DB record ──\nconst dbRecord = {\n  account_id: input.account_id,\n  company_name: input.company_name,\n  domain: input.domain,\n  fit_score: fitScore,\n  fit_grade: fitGrade,\n  intent_score: intentTotal,\n  engagement_score: engagementTotal,\n  total_score: totalScore,\n  action_grade: actionGrade,\n  tier: tier,\n  enrichment_result: enrichment\n};\n\nreturn [{\n  json: {\n    ...input,\n    enrichment,\n    slack_message: slackMessage,\n    db_record: dbRecord,\n    should_notify: actionGrade === 'Hot' || actionGrade === 'Warm'\n  }\n}];"
+      },
+      "id": "calculate-scores",
+      "name": "Calculate & Verify Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO lead_enrichment_log (account_id, company_name, domain, fit_score, fit_grade, intent_score, engagement_score, total_score, action_grade, tier, enrichment_result, model_used) VALUES ('{{ $json.db_record.account_id }}', '{{ $json.db_record.company_name }}', '{{ $json.db_record.domain }}', {{ $json.db_record.fit_score }}, '{{ $json.db_record.fit_grade }}', {{ $json.db_record.intent_score }}, {{ $json.db_record.engagement_score }}, {{ $json.db_record.total_score }}, '{{ $json.db_record.action_grade }}', {{ $json.db_record.tier ? \"'\" + $json.db_record.tier + \"'\" : 'NULL' }}, '{{ JSON.stringify($json.db_record.enrichment_result) }}'::jsonb, 'gpt-4o') RETURNING id;",
+        "options": {}
+      },
+      "id": "save-enrichment-db",
+      "name": "PostgreSQL: Save Enrichment",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1120, 200],
+      "credentials": {
+        "postgres": {
+          "id": "CONFIGURE_ME",
+          "name": "Sales Agent DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.should_notify }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-notify",
+      "name": "IF: Hot or Warm?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Validate & Prepare').first().json.slack_webhook_url || $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Calculate & Verify Scores').first().json.slack_message) }}",
+        "options": {}
+      },
+      "id": "slack-notify-lead",
+      "name": "Slack: Notify #sales-leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 350]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'success', company_name: $('Validate & Prepare').first().json.company_name, domain: $('Validate & Prepare').first().json.domain, fit_score: $('Calculate & Verify Scores').first().json.enrichment.fit_score.total, fit_grade: $('Calculate & Verify Scores').first().json.enrichment.fit_score.grade, intent_score: $('Calculate & Verify Scores').first().json.enrichment.intent_score.total, engagement_score: $('Calculate & Verify Scores').first().json.enrichment.engagement_score.total, total_score: $('Calculate & Verify Scores').first().json.enrichment.total_account_score, action_grade: $('Calculate & Verify Scores').first().json.enrichment.action_grade, tier: $('Calculate & Verify Scores').first().json.enrichment.tier, recommended_action: $('Calculate & Verify Scores').first().json.enrichment.recommended_action_ko, summary: $('Calculate & Verify Scores').first().json.enrichment.summary_ko, enrichment: $('Calculate & Verify Scores').first().json.enrichment, message: 'Lead enrichment & ICP scoring complete.' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook-lead",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 200]
+    }
+  ],
+  "connections": {
+    "Webhook: Receive New Account": {
+      "main": [
+        [{ "node": "Validate & Prepare", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validate & Prepare": {
+      "main": [
+        [{ "node": "OpenAI: Enrich & Score", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI: Enrich & Score": {
+      "main": [
+        [{ "node": "Calculate & Verify Scores", "type": "main", "index": 0 }]
+      ]
+    },
+    "Calculate & Verify Scores": {
+      "main": [
+        [
+          { "node": "PostgreSQL: Save Enrichment", "type": "main", "index": 0 },
+          { "node": "IF: Hot or Warm?", "type": "main", "index": 0 },
+          { "node": "Respond to Webhook", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF: Hot or Warm?": {
+      "main": [
+        [{ "node": "Slack: Notify #sales-leads", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "sales-agent-poc-v3"
+  },
+  "tags": [
+    { "name": "poc-v3" },
+    { "name": "lead-generation-agent" },
+    { "name": "icp-scoring" },
+    { "name": "enrichment" }
+  ]
+}

@@ -1,0 +1,282 @@
+{
+  "report_period": {
+    "week_start": "2026-02-02",
+    "week_end": "2026-02-08",
+    "quarter_start": "2026-01-01",
+    "generated_at": "2026-02-09T08:00:00+09:00"
+  },
+  "summary": {
+    "total_pipeline_acv": 2850000,
+    "total_open_deals": 18,
+    "new_opps_count": 3,
+    "new_opps_acv": 420000,
+    "stage_movements_count": 5,
+    "stalled_deals_count": 2,
+    "stalled_deals_acv": 680000,
+    "wins_count": 1,
+    "wins_acv": 180000,
+    "losses_count": 1,
+    "losses_acv": 250000,
+    "win_rate_count": 50,
+    "win_rate_acv": 42,
+    "forecast_commit_acv": 1200000,
+    "forecast_best_case_acv": 1850000,
+    "forecast_closed_won_qtd": 480000,
+    "forecast_accuracy_pct": 40
+  },
+  "pipeline_by_stage": [
+    { "stage": "S1_Discovery", "deal_count": 4, "total_acv": 520000, "avg_acv": 130000 },
+    { "stage": "S2_Qualification", "deal_count": 5, "total_acv": 680000, "avg_acv": 136000 },
+    { "stage": "S3_Proof", "deal_count": 3, "total_acv": 450000, "avg_acv": 150000 },
+    { "stage": "S4_Proposal", "deal_count": 3, "total_acv": 540000, "avg_acv": 180000 },
+    { "stage": "S5_Negotiation", "deal_count": 2, "total_acv": 420000, "avg_acv": 210000 },
+    { "stage": "S6_Verbal_Commit", "deal_count": 1, "total_acv": 240000, "avg_acv": 240000 }
+  ],
+  "new_opportunities": [
+    {
+      "opportunity_name": "NovaTech — Cloud Migration Platform",
+      "account_name": "NovaTech Inc.",
+      "account_tier": "T2",
+      "stage": "S1_Discovery",
+      "acv": 180000,
+      "owner": "김민수",
+      "created_date": "2026-02-03"
+    },
+    {
+      "opportunity_name": "GreenLogis — 물류 자동화 솔루션",
+      "account_name": "GreenLogis Co.",
+      "account_tier": "T3",
+      "stage": "S1_Discovery",
+      "acv": 90000,
+      "owner": "박지영",
+      "created_date": "2026-02-05"
+    },
+    {
+      "opportunity_name": "MediCore — 임상 데이터 분석",
+      "account_name": "MediCore Health",
+      "account_tier": "T2",
+      "stage": "S1_Discovery",
+      "acv": 150000,
+      "owner": "이준혁",
+      "created_date": "2026-02-06"
+    }
+  ],
+  "stage_movements": [
+    {
+      "opportunity_name": "DataFlow Inc. — Analytics Platform 도입",
+      "previous_stage": "S2_Qualification",
+      "new_stage": "S3_Proof",
+      "account_tier": "T2",
+      "acv": 200000,
+      "moved_at": "2026-02-03"
+    },
+    {
+      "opportunity_name": "FinBridge — Risk Engine 교체",
+      "previous_stage": "S4_Proposal",
+      "new_stage": "S5_Negotiation",
+      "account_tier": "T1",
+      "acv": 320000,
+      "moved_at": "2026-02-04"
+    },
+    {
+      "opportunity_name": "ShopWave — E-commerce Analytics",
+      "previous_stage": "S3_Proof",
+      "new_stage": "S4_Proposal",
+      "account_tier": "T2",
+      "acv": 160000,
+      "moved_at": "2026-02-05"
+    },
+    {
+      "opportunity_name": "CloudFirst — DevOps Monitoring",
+      "previous_stage": "S5_Negotiation",
+      "new_stage": "S6_Verbal_Commit",
+      "account_tier": "T2",
+      "acv": 240000,
+      "moved_at": "2026-02-06"
+    },
+    {
+      "opportunity_name": "RetailMax — POS 데이터 통합",
+      "previous_stage": "S1_Discovery",
+      "new_stage": "S2_Qualification",
+      "account_tier": "T3",
+      "acv": 80000,
+      "moved_at": "2026-02-07"
+    }
+  ],
+  "stalled_deals": [
+    {
+      "opportunity_name": "AlphaBank — 여신심사 AI 고도화",
+      "account_name": "AlphaBank",
+      "account_tier": "T1",
+      "stage": "S4_Proposal",
+      "acv": 480000,
+      "days_in_stage": 42,
+      "owner": "이준혁",
+      "meddicc_total": 58
+    },
+    {
+      "opportunity_name": "EduPrime — LMS 리뉴얼",
+      "account_name": "EduPrime Corp.",
+      "account_tier": "T2",
+      "stage": "S2_Qualification",
+      "acv": 200000,
+      "days_in_stage": 35,
+      "owner": "박지영",
+      "meddicc_total": 32
+    }
+  ],
+  "win_loss": [
+    {
+      "opportunity_name": "SmartFactory — 설비 예지보전",
+      "account_name": "SmartFactory Ltd.",
+      "account_tier": "T2",
+      "outcome": "Closed_Won",
+      "acv": 180000,
+      "primary_reason": "Better Product Fit",
+      "secondary_reason": "Superior Integration",
+      "loss_detail": null,
+      "meddicc_total": 85,
+      "close_date": "2026-02-04"
+    },
+    {
+      "opportunity_name": "TravelHub — 예약 시스템 현대화",
+      "account_name": "TravelHub Korea",
+      "account_tier": "T2",
+      "outcome": "Closed_Lost",
+      "acv": 250000,
+      "primary_reason": "Price Too High",
+      "secondary_reason": "Competitor Chosen",
+      "loss_detail": "경쟁사(VendorX)가 20% 낮은 가격 + 1년 무료 지원 패키지 제안. Champion이 내부 설득했으나 CFO가 비용 절감 우선으로 최종 결정.",
+      "meddicc_total": 62,
+      "close_date": "2026-02-06"
+    }
+  ],
+  "forecast": [
+    { "category": "Pipeline", "deal_count": 9, "total_acv": 1200000, "closed_won_acv": 0 },
+    { "category": "Best Case", "deal_count": 5, "total_acv": 1050000, "closed_won_acv": 0 },
+    { "category": "Commit", "deal_count": 4, "total_acv": 720000, "closed_won_acv": 0 },
+    { "category": "Closed", "deal_count": 3, "total_acv": 480000, "closed_won_acv": 480000 }
+  ],
+  "top_deals": [
+    {
+      "opportunity_name": "AlphaBank — 여신심사 AI 고도화",
+      "account_name": "AlphaBank",
+      "account_tier": "T1",
+      "stage": "S4_Proposal",
+      "acv": 480000,
+      "expected_close": "2026-03-15",
+      "meddicc_total": 58,
+      "forecast_category": "Best Case",
+      "days_in_stage": 42,
+      "owner": "이준혁"
+    },
+    {
+      "opportunity_name": "FinBridge — Risk Engine 교체",
+      "account_name": "FinBridge Capital",
+      "account_tier": "T1",
+      "stage": "S5_Negotiation",
+      "acv": 320000,
+      "expected_close": "2026-02-28",
+      "meddicc_total": 76,
+      "forecast_category": "Commit",
+      "days_in_stage": 5,
+      "owner": "김민수"
+    },
+    {
+      "opportunity_name": "CloudFirst — DevOps Monitoring",
+      "account_name": "CloudFirst Solutions",
+      "account_tier": "T2",
+      "stage": "S6_Verbal_Commit",
+      "acv": 240000,
+      "expected_close": "2026-02-14",
+      "meddicc_total": 88,
+      "forecast_category": "Commit",
+      "days_in_stage": 3,
+      "owner": "김민수"
+    },
+    {
+      "opportunity_name": "EduPrime — LMS 리뉴얼",
+      "account_name": "EduPrime Corp.",
+      "account_tier": "T2",
+      "stage": "S2_Qualification",
+      "acv": 200000,
+      "expected_close": "2026-04-30",
+      "meddicc_total": 32,
+      "forecast_category": "Pipeline",
+      "days_in_stage": 35,
+      "owner": "박지영"
+    },
+    {
+      "opportunity_name": "DataFlow Inc. — Analytics Platform 도입",
+      "account_name": "DataFlow Inc.",
+      "account_tier": "T2",
+      "stage": "S3_Proof",
+      "acv": 200000,
+      "expected_close": "2026-03-31",
+      "meddicc_total": 52,
+      "forecast_category": "Best Case",
+      "days_in_stage": 6,
+      "owner": "김민수"
+    },
+    {
+      "opportunity_name": "NovaTech — Cloud Migration Platform",
+      "account_name": "NovaTech Inc.",
+      "account_tier": "T2",
+      "stage": "S1_Discovery",
+      "acv": 180000,
+      "expected_close": "2026-05-15",
+      "meddicc_total": 0,
+      "forecast_category": "Pipeline",
+      "days_in_stage": 6,
+      "owner": "김민수"
+    },
+    {
+      "opportunity_name": "ShopWave — E-commerce Analytics",
+      "account_name": "ShopWave Corp.",
+      "account_tier": "T2",
+      "stage": "S4_Proposal",
+      "acv": 160000,
+      "expected_close": "2026-03-20",
+      "meddicc_total": 65,
+      "forecast_category": "Best Case",
+      "days_in_stage": 4,
+      "owner": "박지영"
+    },
+    {
+      "opportunity_name": "MediCore — 임상 데이터 분석",
+      "account_name": "MediCore Health",
+      "account_tier": "T2",
+      "stage": "S1_Discovery",
+      "acv": 150000,
+      "expected_close": "2026-05-30",
+      "meddicc_total": 0,
+      "forecast_category": "Pipeline",
+      "days_in_stage": 3,
+      "owner": "이준혁"
+    },
+    {
+      "opportunity_name": "FinBridge — Compliance Dashboard",
+      "account_name": "FinBridge Capital",
+      "account_tier": "T1",
+      "stage": "S2_Qualification",
+      "acv": 140000,
+      "expected_close": "2026-04-15",
+      "meddicc_total": 28,
+      "forecast_category": "Pipeline",
+      "days_in_stage": 12,
+      "owner": "김민수"
+    },
+    {
+      "opportunity_name": "RetailMax — POS 데이터 통합",
+      "account_name": "RetailMax",
+      "account_tier": "T3",
+      "stage": "S2_Qualification",
+      "acv": 80000,
+      "expected_close": "2026-04-30",
+      "meddicc_total": 18,
+      "forecast_category": "Pipeline",
+      "days_in_stage": 2,
+      "owner": "박지영"
+    }
+  ]
+}

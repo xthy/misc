@@ -94,6 +94,38 @@ E-commerce / Logistics / Education / Media / Professional Services / Other
 T1 Strategic / T2 Core / T3 Long-tail
 ```
 
+### Partner Account Fields
+> Source: `playbook/plays/play_07_partner_channel_sales.md` — Appendix B
+
+Account.Type = "Partner"인 파트너 계정에 적용되는 전용 필드.
+
+| Field Name | API Name | Type | Required | Description |
+|-----------|----------|------|----------|-------------|
+| Partner Type | `Partner_Type__c` | Picklist | Yes | Referral / Reseller / Technology / SI |
+| Partner Tier | `Partner_Tier__c` | Picklist | Yes | Silver / Gold / Platinum |
+| Partner Status | `Partner_Status__c` | Picklist | Yes | Prospect / Onboarding / Active / Inactive / Churned |
+| Partner Since | `Partner_Since__c` | Date | No | 파트너 계약 시작일 |
+| Partner Manager | `Partner_Manager__c` | Lookup(User) | Yes | 담당 Partner Manager |
+| Certification Status | `Partner_Cert_Status__c` | Picklist | No | Incomplete / Basic / Full |
+| Certification Date | `Partner_Cert_Date__c` | Date | No | 최근 Certification 완료일 |
+| Partner Health Score | `Partner_Health_Score__c` | Number(0-100) | No | 활동+실적+Certification 종합 점수 |
+| Partner NPS | `Partner_NPS__c` | Number | No | 최근 파트너 만족도 점수 |
+
+**Partner Type**:
+```
+Referral / Reseller / Technology / SI
+```
+
+**Partner Tier**:
+```
+Silver / Gold / Platinum
+```
+
+**Partner Status**:
+```
+Prospect / Onboarding / Active / Inactive / Churned
+```
+
 ---
 
 ## Contact Object
@@ -120,6 +152,7 @@ T1 Strategic / T2 Core / T3 Long-tail
 | Persona | `Persona__c` | Picklist | No | Technical / Business / Executive |
 | Preferred Channel | `Preferred_Channel__c` | Picklist | No | Email / Phone / LinkedIn |
 | Communication Notes | `Comm_Notes__c` | Text Area | No | 커뮤니케이션 스타일, 선호 사항 |
+| Disqualify Reason | `Disqualify_Reason__c` | Picklist | No | ICP Misfit / No Budget / No Authority / No Need / Competitor Locked / Duplicate / Other |
 
 ### Picklist Values
 
@@ -206,6 +239,53 @@ Active (정기적 소통) / Champion (내부 옹호)
 | **Contract Term** | `Contract_Term__c` | Number(months) | 계약 기간 |
 | **Discount %** | `Discount_Pct__c` | Percent | 적용 할인율 |
 | **Forecast Category** | `Forecast_Category__c` | Picklist | Pipeline / Best Case / Commit / Closed |
+| **Lead Source Detail** | `Lead_Source_Detail__c` | Picklist | Demo Request / Content Download / Webinar / Referral / Chat / Trial / Event / Partner |
+| **First Response Time** | `First_Response_Time__c` | Number(minutes) | 인바운드 리드 제출 → 첫 응답 소요 시간 |
+| **Inbound Form Data** | `Inbound_Form_Data__c` | Text Area | 폼 제출 원문 데이터 |
+| **Referring URL** | `Referring_URL__c` | URL | 유입 페이지 URL |
+| **Referrer Name** | `Referrer_Name__c` | Text | 추천인 이름 (Referral인 경우) |
+| **Budget Status** | `Budget_Status__c` | Picklist | Not Discussed / No Budget / Budget Planned / Budget Approved |
+
+### Partner Opportunity Fields
+> Source: `playbook/plays/play_07_partner_channel_sales.md` — Appendix B
+
+파트너 소싱/co-sell Opportunity에 적용되는 전용 필드. `Source_Channel__c` = "Partner"인 경우 필수.
+
+| Field Name | API Name | Type | Description |
+|-----------|----------|------|-------------|
+| **Partner Account** | `Partner_Account__c` | Lookup(Account) | 소싱/co-sell 파트너 계정 연결 |
+| **Deal Registration Status** | `Deal_Reg_Status__c` | Picklist | Pending / Approved / Expired / Rejected |
+| **Deal Registration Date** | `Deal_Reg_Date__c` | Date | 딜 등록 신청일 |
+| **Deal Registration Expiry** | `Deal_Reg_Expiry__c` | Formula(Date) | 등록일 + 90일 |
+| **Partner Engagement Level** | `Partner_Engagement_Level__c` | Picklist | Referral Only / Co-sell / Partner-led |
+| **Partner Commission** | `Partner_Commission__c` | Currency | 예상/확정 커미션 금액 |
+| **Partner Commission Rate** | `Partner_Commission_Rate__c` | Percent | 적용 커미션율 |
+| **Partner Commission Status** | `Partner_Commission_Status__c` | Picklist | Pending / Approved / Paid |
+
+### Pricing & Discount Fields
+> Source: `playbook/07_pricing_discount_matrix.md` — Section 10
+
+가격 정책, 할인 승인, 계약 조건 관련 필드. Deal Conversion Agent가 자동 검증.
+
+| Field Name | API Name | Type | Description |
+|-----------|----------|------|-------------|
+| **List Price** | `List_Price__c` | Currency | 정가 (할인 전) |
+| **Net Price** | `Net_Price__c` | Formula | List Price × (1 - Discount%) |
+| **Discount Approver** | `Discount_Approver__c` | Lookup(User) | 할인 승인자 |
+| **Discount Approval Status** | `Discount_Approval_Status__c` | Picklist | Pending / Approved / Rejected |
+| **Discount Justification** | `Discount_Justification__c` | Text Area | 할인 사유 상세 |
+| **Package Tier** | `Package_Tier__c` | Picklist | Good / Better / Best |
+| **Billing Frequency** | `Billing_Frequency__c` | Picklist | Monthly / Quarterly / Annual |
+| **Payment Terms** | `Payment_Terms__c` | Picklist | Net 30 / Net 45 / Net 60 / Net 90 / Upfront |
+| **Price Escalation %** | `Price_Escalation_Pct__c` | Percent | 연간 가격 인상률 |
+| **Multi-Year Discount %** | `Multi_Year_Discount_Pct__c` | Percent | Multi-year 추가 할인 |
+| **Total Effective Discount** | `Total_Effective_Discount__c` | Formula | Standard + Multi-Year + Volume 종합 실효 할인율 |
+| **Margin %** | `Margin_Pct__c` | Formula | 마진율 |
+| **Competitor Price Est** | `Competitor_Price_Est__c` | Currency | 경쟁사 추정 가격 |
+| **Free Months** | `Free_Months__c` | Number | 무료 제공 월수 |
+| **Credit Amount** | `Credit_Amount__c` | Currency | 크레딧 금액 |
+| **Is Renewal** | `Is_Renewal__c` | Boolean | 갱신 딜 여부 |
+| **Previous Discount %** | `Previous_Discount_Pct__c` | Percent | 이전 계약 할인율 |
 
 ### Win/Loss Reason Picklist
 
@@ -325,11 +405,13 @@ Lost Champion / Relationship with Competitor / Compliance/Security Gap
 
 | Trigger | Validation |
 |---------|-----------|
-| Stage → S2 | MEDDICC_I_Score ≥ 1, MEDDICC_M_Score ≥ 1 |
-| Stage → S3 | MEDDICC_EB ≠ null, MEDDICC_DC ≠ empty |
-| Stage → S4 | Amount > 0, MEDDICC_Total ≥ 40 |
+| Stage → S2 | MEDDICC_M_Score ≥ 1, MEDDICC_I_Score ≥ 2, MEDDICC_C_Score ≥ 1 |
+| Stage → S3 | MEDDICC_M_Score ≥ 2, MEDDICC_E_Score ≥ 1, MEDDICC_DC_Score ≥ 2, MEDDICC_I_Score ≥ 2, MEDDICC_C_Score ≥ 2 |
+| Stage → S4 | Amount > 0, All MEDDICC scores ≥ 2, MEDDICC_E_Score ≥ 2 |
+| Stage → S5 | All MEDDICC scores ≥ 2, MEDDICC_DP_Score ≥ 2, MEDDICC_E_Score ≥ 2 |
+| Stage → S6 | MEDDICC_Total ≥ 80 |
 | Stage → Closed Lost | Win_Loss_Reason_1 ≠ null, Loss_Detail ≠ empty |
-| Stage → Closed Won | Discount reviewed, Contract_Term filled |
+| Stage → Closed Won | MEDDICC_Total ≥ 80, Discount reviewed, Contract_Term filled |
 
 ### Auto-Update Rules (Agent-driven)
 
